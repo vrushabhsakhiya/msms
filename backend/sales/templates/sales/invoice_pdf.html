@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Helvetica, sans-serif; }
+        .invoice-box { padding: 30px; border: 1px solid #eee; font-size: 16px; line-height: 24px; color: #555; }
+        .invoice-box table { width: 100%; line-height: inherit; text-align: left; border-collapse: collapse; }
+        .invoice-box table td { padding: 5px; vertical-align: top; }
+        .invoice-box table tr td:nth-child(2) { text-align: right; }
+        .invoice-box table tr.top table td { padding-bottom: 20px; }
+        .invoice-box table tr.information table td { padding-bottom: 40px; }
+        .invoice-box table tr.heading td { background: #eee; border-bottom: 1px solid #ddd; font-weight: bold; }
+        .invoice-box table tr.item td { border-bottom: 1px solid #eee; }
+        .invoice-box table tr.total td:nth-child(2) { border-top: 2px solid #eee; font-weight: bold; }
+        .shop-name { font-size: 28px; font-weight: bold; color: #2c3e50; }
+    </style>
+</head>
+<body>
+    <div class="invoice-box">
+        <table>
+            <tr class="top">
+                <td colspan="4">
+                    <table>
+                        <tr>
+                            <td class="shop-name">{{ sale.shop.name }}</td>
+                            <td>
+                                Invoice #: {{ sale.invoice_number }}<br>
+                                Date: {{ sale.created_at|date:"d M Y" }}
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+            <tr class="information">
+                <td colspan="4">
+                    <table>
+                        <tr>
+                            <td>
+                                {{ sale.shop.address }}<br>
+                                Contact: {{ sale.shop.contact_number }}
+                            </td>
+                            <td>
+                                Customer: {{ sale.customer_name }}<br>
+                                Mobile: {{ sale.customer_mobile }}
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+            <tr class="heading">
+                <td>Medicine</td>
+                <td style="text-align: center;">Batch</td>
+                <td style="text-align: center;">Qty</td>
+                <td>Price</td>
+            </tr>
+            {% for item in sale.items.all %}
+            <tr class="item">
+                <td>{{ item.medicine.medicine_name }}</td>
+                <td style="text-align: center;">{{ item.batch_number }}</td>
+                <td style="text-align: center;">{{ item.quantity }}</td>
+                <td>{{ item.amount }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="total">
+                <td></td><td></td><td></td>
+                <td>Total: ₹{{ sale.net_amount }}</td>
+            </tr>
+        </table>
+        <div style="margin-top: 50px; text-align: center; font-size: 12px;">
+            Thank you for your purchase!<br>
+            Powered by MSMS
+        </div>
+    </div>
+</body>
+</html>
