@@ -39,6 +39,7 @@ function SalesReport() {
     payment_mode: "All",
     customer_type: "All"
   });
+  const { start_date, end_date, payment_mode, customer_type } = filters;
 
   const handlePrint = useCallback(() => window.print(), []);
 
@@ -58,7 +59,7 @@ function SalesReport() {
     const fetchReport = async () => {
       try {
         setLoading(true);
-        const res = await API.get(API_ENDPOINTS.sales.report(filters));
+        const res = await API.get(API_ENDPOINTS.sales.report({ start_date, end_date, payment_mode, customer_type }));
         setReport(res.data);
       } catch (err) {
         console.error("Error fetching sales report", err);
@@ -68,7 +69,7 @@ function SalesReport() {
     };
 
     fetchReport();
-  }, [filters.start_date, filters.end_date, filters.payment_mode, filters.customer_type]);
+  }, [start_date, end_date, payment_mode, customer_type]);
 
   const downloadCSV = () => {
     if (!report) return;

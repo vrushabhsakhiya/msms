@@ -10,7 +10,6 @@ import {
   Receipt,
   ArrowRight,
   ShoppingCart,
-  Calendar,
   Package,
   PlusCircle,
   Activity,
@@ -32,7 +31,6 @@ import {
 function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
   const [rangeDays, setRangeDays] = useState(7);
   const navigate = useNavigate();
   const role = (localStorage.getItem("role") || "staff").toLowerCase();
@@ -43,22 +41,20 @@ function Dashboard() {
   const canReadSales = role === 'admin' || permissions?.sales?.read;
 
   useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        setLoading(true);
+        const res = await API.get(API_ENDPOINTS.inventory.dashboard({ days: rangeDays }));
+        setData(res.data);
+      } catch (err) {
+        console.error("Error loading dashboard", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     loadDashboardData();
   }, [rangeDays]);
-
-  const loadDashboardData = async () => {
-    try {
-      setLoading(true);
-      setError(false);
-      const res = await API.get(API_ENDPOINTS.inventory.dashboard({ days: rangeDays }));
-      setData(res.data);
-    } catch (err) {
-      console.error("Error loading dashboard", err);
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading) {
     return (

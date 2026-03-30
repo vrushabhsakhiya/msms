@@ -85,7 +85,6 @@ API.interceptors.response.use(
     // 2. Global Error Handling
     if (error.response) {
       const status = error.response.status;
-      const data = error.response.data;
 
       if (status === 403) {
         if (!originalRequest.silent) {

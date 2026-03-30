@@ -4,7 +4,6 @@ import {
     TrendingUp,
     ShoppingCart,
     Receipt,
-    Printer,
     FileText,
     Boxes,
     Users,

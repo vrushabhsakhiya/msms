@@ -11,16 +11,16 @@ function GSTR2Report() {
     end_date: new Date().toISOString().split('T')[0]
   });
 
-  const fetchReport = async () => {
-    try {
-      const res = await API.get(API_ENDPOINTS.purchases.gstr2(filters));
-      setReport(res.data);
-    } catch (err) {
-      console.error("Error fetching GSTR2", err);
-    }
-  };
-
   useEffect(() => {
+    const fetchReport = async () => {
+      try {
+        const res = await API.get(API_ENDPOINTS.purchases.gstr2(filters));
+        setReport(res.data);
+      } catch (err) {
+        console.error("Error fetching GSTR2", err);
+      }
+    };
+
     fetchReport();
   }, [filters]);
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import API from "../services/api";
 import { API_ENDPOINTS } from "../services/endpoints";
 import {
@@ -9,18 +9,10 @@ import {
   Users,
   ShoppingCart,
   FileText,
-  AlertTriangle,
   BarChart3,
-  LogOut,
-  ShieldCheck,
-  ClipboardList,
   UserCog,
   PackageSearch,
-  Stethoscope,
   Receipt,
-  Menu,
-  ChevronLeft,
-  ChevronRight,
   History,
 } from "lucide-react";
 
@@ -29,10 +21,8 @@ import {
  */
 function Sidebar({ collapsed, setCollapsed }) {
   const location = useLocation();
-  const navigate = useNavigate();
   const role = (localStorage.getItem("role") || "staff").toLowerCase();
   const permissions = JSON.parse(localStorage.getItem("permissions") || "{}");
-  const shopName = localStorage.getItem("shop_name") || "Pharmly";
   const [alertCount, setAlertCount] = useState(0);
   const [branding, setBranding] = useState({ product_name: "Pharmly", logo: null });
 

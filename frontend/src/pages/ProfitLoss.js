@@ -18,11 +18,12 @@ function ProfitLoss() {
         start_date: new Date(new Date().setDate(1)).toISOString().split('T')[0],
         end_date: new Date().toISOString().split('T')[0]
     });
+    const { start_date, end_date } = filters;
 
     useEffect(() => {
         const fetchPL = async () => {
             try {
-                const res = await API.get(API_ENDPOINTS.sales.profitLoss(filters));
+                const res = await API.get(API_ENDPOINTS.sales.profitLoss({ start_date, end_date }));
                 setData(res.data);
             } catch (err) {
                 console.error("Error fetching P&L", err);
@@ -30,7 +31,7 @@ function ProfitLoss() {
         };
 
         fetchPL();
-    }, [filters.start_date, filters.end_date]);
+    }, [start_date, end_date]);
 
     const downloadCSV = () => {
       if (!data) return;

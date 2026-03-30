@@ -1,4 +1,4 @@
-import { Search, Bell, ChevronDown, AlertTriangle, Calendar, CreditCard, ShoppingCart, User as UserIcon, Settings, LogOut } from "lucide-react";
+import { Bell, ChevronDown, AlertTriangle, Calendar, CreditCard, ShoppingCart, User as UserIcon, Settings, LogOut } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import API from "../services/api";
@@ -9,7 +9,6 @@ function TopBar({ title, subtitle, actions, icon }) {
   const location = useLocation();
   const userName = localStorage.getItem("user") || "AdminUser";
   const userRole = localStorage.getItem("role") || "staff";
-  const userEmail = localStorage.getItem("email") || "user@example.com";
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);

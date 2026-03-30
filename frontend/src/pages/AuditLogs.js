@@ -3,7 +3,7 @@ import API from "../services/api";
 import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import { 
-    History, Search, User, Activity, Clock, FileText, Filter, Calendar, Terminal, Database, ShieldAlert
+    History, Search, User, Clock, Filter, ShieldAlert
 } from "lucide-react";
 
 function AuditLogs() {

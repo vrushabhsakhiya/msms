@@ -18,12 +18,13 @@ function ProductPerformance() {
         start_date: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
         end_date: new Date().toISOString().split('T')[0]
     });
+    const { start_date, end_date } = filters;
 
     useEffect(() => {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const res = await API.get(API_ENDPOINTS.sales.performance(filters));
+                const res = await API.get(API_ENDPOINTS.sales.performance({ start_date, end_date }));
                 setData(res.data);
             } catch (err) {
                 console.error("Error fetching performance", err);
@@ -33,7 +34,7 @@ function ProductPerformance() {
         };
 
         fetchData();
-    }, [filters.start_date, filters.end_date]);
+    }, [start_date, end_date]);
 
     const downloadCSV = () => {
         if (!data) return;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
 import { API_ENDPOINTS } from "../services/endpoints";
@@ -8,12 +8,7 @@ import {
   Trash2,
   Printer,
   ShoppingCart,
-  Calendar,
-  Info,
   Plus,
-  Minus,
-  Tag,
-  FileUp,
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -30,21 +25,6 @@ function useDebounce(value, delay) {
 
 function Billing() {
   const navigate = useNavigate();
-
-  const handleImportCSV = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const res = await API.post(API_ENDPOINTS.sales.importCsv, formData);
-      toast.success(res.data.message || "Import Successful!");
-    } catch (err) {
-      toast.error(err.response?.data?.error || "Error importing CSV");
-    }
-  };
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [selectedMedicine, setSelectedMedicine] = useState(null);
@@ -76,6 +56,47 @@ function Billing() {
     status: "Final", // Final, Draft, Hold
   });
 
+  const createSale = useCallback(
+    async (statusArg = "Final") => {
+      if (billItems.length === 0) {
+        toast.error("Please add at least one medicine to generate bill");
+        return;
+      }
+
+      // Auto-status is purely driven by whether a mobile number was provided
+      // The backend gracefully handles get_or_create on the mobile.
+
+      try {
+        const billData = {
+          ...bill,
+          status: statusArg,
+          items: billItems.map((it) => ({
+            medicine: it.medicine_id,
+            batch: it.batch,
+            batch_number: it.batch_number,
+            quantity: it.quantity,
+            rate: it.rate,
+            discount_percent: it.discount_percent,
+            gst_percentage: it.gst_percentage,
+            amount: (it.rate * it.quantity * (100 - it.discount_percent)) / 100,
+          })),
+        };
+        const res = await API.post(API_ENDPOINTS.sales.add, billData);
+        if (statusArg === "Final") {
+          navigate("/invoice", { state: { ...billData, id: res.data.id, invoice_number: res.data.invoice_number } });
+        } else {
+          alert(`Bill saved as ${statusArg}`);
+          setBillItems([]);
+          setBill((prev) => ({ ...prev, invoice_number: `INV-${Date.now().toString().slice(-6)}` }));
+        }
+      } catch (err) {
+        const errorDetail = err.response?.data ? JSON.stringify(err.response.data) : (err.message || "Unknown error");
+        toast.error("Error generating bill: " + errorDetail);
+      }
+    },
+    [billItems, bill, navigate]
+  );
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "F2") {
@@ -97,38 +118,12 @@ function Billing() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [billItems, bill]); // Added dependencies for shortcuts to work with latest state
+  }, [createSale]); // Added dependencies for shortcuts to work with latest state
 
   // Debounced search trigger: Only fires 300ms after user stops typing
   const debouncedSearch = useDebounce(search, 300);
 
-  useEffect(() => {
-    if (debouncedSearch.length >= 2) {
-      performSearch(debouncedSearch);
-    } else {
-      setSearchResults([]);
-    }
-  }, [debouncedSearch]);
-
-  const performSearch = async (value) => {
-    try {
-      const res = await API.get(API_ENDPOINTS.medicines.search({ q: value }));
-      setSearchResults(res.data);
-
-      if (quickScan && res.data.length === 1 && (res.data[0].barcode === value || res.data[0].medicine_code === value)) {
-        await autoAddByBarcode(res.data[0]);
-      }
-    } catch (err) {
-      console.error("Search error", err);
-    }
-  };
-
-  const handleSearch = (value) => {
-    setSearch(value);
-    // Let the useEffect handle the actual API call
-  };
-
-  const autoAddByBarcode = async (med) => {
+  const autoAddByBarcode = useCallback(async (med) => {
     try {
       const batchRes = await API.get(API_ENDPOINTS.inventory.batches(med.id));
       const availableBatches = batchRes.data.filter(b => b.quantity > 0 && new Date(b.expiry_date) > new Date());
@@ -168,6 +163,32 @@ function Billing() {
     } catch (err) {
       console.error("Auto-add error", err);
     }
+  }, []);
+
+  const performSearch = useCallback(async (value) => {
+    try {
+      const res = await API.get(API_ENDPOINTS.medicines.search({ q: value }));
+      setSearchResults(res.data);
+
+      if (quickScan && res.data.length === 1 && (res.data[0].barcode === value || res.data[0].medicine_code === value)) {
+        await autoAddByBarcode(res.data[0]);
+      }
+    } catch (err) {
+      console.error("Search error", err);
+    }
+  }, [autoAddByBarcode, quickScan]);
+
+  useEffect(() => {
+    if (debouncedSearch.length >= 2) {
+      performSearch(debouncedSearch);
+    } else {
+      setSearchResults([]);
+    }
+  }, [debouncedSearch, performSearch]);
+
+  const handleSearch = (value) => {
+    setSearch(value);
+    // Let the useEffect handle the actual API call
   };
 
   const fetchCustomers = async (query) => {
@@ -311,44 +332,6 @@ function Billing() {
     }));
 
   }, [billItems]);
-
-  const createSale = async (statusArg = "Final") => {
-    if (billItems.length === 0) {
-      toast.error("Please add at least one medicine to generate bill");
-      return;
-    }
-    
-    // Auto-status is purely driven by whether a mobile number was provided
-    // The backend gracefully handles get_or_create on the mobile.
-
-    try {
-      const billData = {
-        ...bill,
-        status: statusArg,
-        items: billItems.map((it) => ({
-          medicine: it.medicine_id,
-          batch: it.batch,
-          batch_number: it.batch_number,
-          quantity: it.quantity,
-          rate: it.rate,
-          discount_percent: it.discount_percent,
-          gst_percentage: it.gst_percentage,
-          amount: (it.rate * it.quantity * (100 - it.discount_percent)) / 100,
-        })),
-      };
-      const res = await API.post(API_ENDPOINTS.sales.add, billData);
-      if (statusArg === "Final") {
-        navigate("/invoice", { state: { ...billData, id: res.data.id, invoice_number: res.data.invoice_number } });
-      } else {
-        alert(`Bill saved as ${statusArg}`);
-        setBillItems([]);
-        setBill(prev => ({ ...prev, invoice_number: `INV-${Date.now().toString().slice(-6)}` }));
-      }
-    } catch (err) {
-      const errorDetail = err.response?.data ? JSON.stringify(err.response.data) : (err.message || "Unknown error");
-      toast.error("Error generating bill: " + errorDetail);
-    }
-  };
 
   const clearBill = () => {
     if (window.confirm("Are you sure you want to clear the entire bill?")) {

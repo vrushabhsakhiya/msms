@@ -75,7 +75,7 @@ function Inventory() {
         remarks: ""
     });
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
 
@@ -102,11 +102,11 @@ function Inventory() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [activeTab, moveFilter]);
 
     useEffect(() => {
         fetchData();
-    }, [activeTab, moveFilter]);
+    }, [fetchData]);
 
     const handleMedicineChange = async (medId) => {
         setAdjForm({ ...adjForm, medicine: medId, batch: "" });
@@ -401,12 +401,12 @@ function Inventory() {
                     <p style={{ color: '#64748b', margin: '5px 0 0 0', fontSize: '1.1rem' }}>Monitor real-time stock levels, Manage expiries, and Perform audits</p>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                    <button className={`nav-tab ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}><Layers size={18} /> Overview</button>
-                    <button className={`nav-tab ${activeTab === 'alerts' ? 'active' : ''}`} onClick={() => setActiveTab('alerts')}><AlertTriangle size={18} /> Alerts</button>
+                    <button className={`nav-tab ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')} disabled={loading}><Layers size={18} /> Overview</button>
+                    <button className={`nav-tab ${activeTab === 'alerts' ? 'active' : ''}`} onClick={() => setActiveTab('alerts')} disabled={loading}><AlertTriangle size={18} /> Alerts</button>
                     {canUpdateStock && (
-                        <button className={`nav-tab ${activeTab === 'adjustment' ? 'active' : ''}`} onClick={() => setActiveTab('adjustment')}><ArrowRightLeft size={18} /> Adjustments</button>
+                        <button className={`nav-tab ${activeTab === 'adjustment' ? 'active' : ''}`} onClick={() => setActiveTab('adjustment')} disabled={loading}><ArrowRightLeft size={18} /> Adjustments</button>
                     )}
-                    <button className={`nav-tab ${activeTab === 'movement' ? 'active' : ''}`} onClick={() => setActiveTab('movement')}><FileText size={18} /> Movements</button>
+                    <button className={`nav-tab ${activeTab === 'movement' ? 'active' : ''}`} onClick={() => setActiveTab('movement')} disabled={loading}><FileText size={18} /> Movements</button>
                 </div>
             </div>
 

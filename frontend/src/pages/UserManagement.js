@@ -3,7 +3,7 @@
   import { API_ENDPOINTS } from "../services/endpoints";
   import Layout from "../components/Layout";
   import {
-    Users, Trash2, ShieldCheck, UserPlus, Mail, Phone, Lock, Fingerprint, Settings2, Plus, X, Check, ChevronDown, ChevronUp, Pencil, Undo2, Ban, Save
+    Users, Trash2, ShieldCheck, UserPlus, Fingerprint, Settings2, Plus, X, Check, ChevronDown, ChevronUp, Pencil, Undo2
   } from "lucide-react";
   import toast, { Toaster } from "react-hot-toast";
 
@@ -122,6 +122,7 @@
     }, []);
 
     const fetchInitialData = async () => {
+      setLoading(true);
       try {
         const [uRes, rRes] = await Promise.all([
           API.get(API_ENDPOINTS.auth.users),
@@ -274,7 +275,7 @@
                 <span style={{ fontSize: "0.85rem", fontWeight: "700", padding: "6px 12px", borderRadius: "8px", backgroundColor: users.length >= staffLimit ? "#fee2e2" : "#f1f5f9", color: users.length >= staffLimit ? "#dc2626" : "#475569" }}>
                   Active Users: {users.length} / {staffLimit} Limit
                 </span>
-                <button className="btn-primary" onClick={openAddUser} disabled={users.length >= staffLimit} style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", borderRadius: "10px", padding: "0.6rem 1.2rem", opacity: users.length >= staffLimit ? 0.5 : 1, cursor: users.length >= staffLimit ? "not-allowed" : "pointer" }}>
+                <button className="btn-primary" onClick={openAddUser} disabled={loading || users.length >= staffLimit} style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", borderRadius: "10px", padding: "0.6rem 1.2rem", opacity: loading || users.length >= staffLimit ? 0.5 : 1, cursor: loading || users.length >= staffLimit ? "not-allowed" : "pointer" }}>
                   <UserPlus size={16} /> Add Staff Member
                 </button>
               </div>

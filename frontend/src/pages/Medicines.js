@@ -5,19 +5,12 @@ import Layout from "../components/Layout";
 import {
   Plus, Pill, Search, AlertTriangle, CheckCircle, XCircle,
   Clock, Trash2, Pencil, X, ChevronRight, Package2,
-  FlaskConical, Layers, Calculator, FileDown, Upload, Save
+  FlaskConical, Layers, Calculator, FileDown, Upload
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 const fmt = (n) => `₹${parseFloat(n || 0).toFixed(2)}`;
-const today = () => new Date().toISOString().split("T")[0];
-const thirtyDaysLater = () => {
-  const d = new Date();
-  d.setDate(d.getDate() + 30);
-  return d.toISOString().split("T")[0];
-};
-
 const CATEGORIES = [
   "Tablet", "Capsule", "Lozenges",
   "Powder", "Granules",
@@ -28,7 +21,6 @@ const CATEGORIES = [
   "Suppositories", "Pessaries", "Enemas"
 ];
 const MED_TYPES = ["Allopathic", "Ayurvedic", "Homeopathic"];
-const GST_RATES = [0, 5, 12, 18, 28];
 
 const EMPTY_FORM = {
   // Tab 1
@@ -120,7 +112,6 @@ function GSTCalc({ form }) {
 // ─── Main Component ────────────────────────────────────────────────────────
 function Medicines() {
   const [medicines, setMedicines] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCat, setFilterCat] = useState("All");
@@ -130,10 +121,7 @@ function Medicines() {
   const [activeTab, setActiveTab] = useState(0);
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
-  const [toasts, setToasts] = useState([]);
   const [saving, setSaving] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageInfo, setPageInfo] = useState({ count: 0, next: null, prev: null });
   const role = (localStorage.getItem("role") || "staff").toLowerCase();
   const permissions = JSON.parse(localStorage.getItem("permissions") || "{}");
   const canEdit = role === "admin" || permissions?.medicine?.update || permissions?.medicine?.create;
@@ -157,15 +145,6 @@ function Medicines() {
       setLoading(true);
       const mRes = await API.get(API_ENDPOINTS.medicines.list({ page }));
       setMedicines(mRes.data);
-      if (mRes.data._pagination) {
-        setPageInfo(mRes.data._pagination);
-      }
-      try {
-        const sRes = await API.get(API_ENDPOINTS.suppliers.list, { silent: true });
-        setSuppliers(sRes.data);
-      } catch (e) {
-        setSuppliers([]);
-      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -173,7 +152,7 @@ function Medicines() {
     }
   }, []);
 
-  useEffect(() => { fetchAll(currentPage); }, [fetchAll, currentPage]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // Auto-generate medicine code from name
   const setF = (key, val) => {
@@ -523,7 +502,6 @@ const handleDelete = async (id, name) => {
                 const lowStock = med.stock_quantity > 0 && med.stock_quantity <= med.reorder_level;
                 const outStock = med.stock_quantity === 0;
                 const expDays = med.days_to_expiry;
-                const nearExp = expDays !== null && expDays <= 30;
                 return (
                   <tr key={med.id}>
                     <td>

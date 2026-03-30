@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Printer, ArrowLeft, Pill, CheckCircle, Smartphone, MapPin, Mail, Globe, MessageSquare, Send } from "lucide-react";
+import { Printer, ArrowLeft, Pill, Smartphone, MapPin, Mail, MessageSquare, Send } from "lucide-react";
 import API from "../services/api";
 import { API_ENDPOINTS } from "../services/endpoints";
 

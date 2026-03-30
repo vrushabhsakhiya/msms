@@ -12,19 +12,8 @@ import {
   Tag,
   Info,
   Receipt,
-  Filter,
   FileText
 } from "lucide-react";
-
-const CATEGORIES = [
-  "Tablet", "Capsule", "Lozenges",
-  "Powder", "Granules",
-  "Syrup", "Suspension", "Solution", "Elixir", "Drops",
-  "Cream", "Ointment", "Gel", "Paste", "Lotion",
-  "Injection", "IV (Intravenous)", "IM (Intramuscular)", "SC (Subcutaneous)", "Infusion",
-  "Inhaler", "Nebulizer solution", "Aerosol spray",
-  "Suppositories", "Pessaries", "Enemas"
-];
 
 function Purchase() {
   const [suppliers, setSuppliers] = useState([]);
@@ -34,7 +23,6 @@ function Purchase() {
   const role = (localStorage.getItem("role") || "staff").toLowerCase();
   const permissions = JSON.parse(localStorage.getItem("permissions") || "{}");
   const canCreatePurchase = role === "admin" || permissions?.purchase?.create;
-  const canDeletePurchase = role === "admin" || permissions?.purchase?.delete;
 
   const [form, setForm] = useState({
     purchase_code: `PO-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 100)}`,
@@ -234,8 +222,8 @@ function Purchase() {
     csvContent += "invoice_number,invoice_date,supplier_name,medicine_name,batch_number,expiry_date,quantity,free_quantity,purchase_rate,mrp,gst_percentage\n";
     
     form.items.forEach(it => {
-        const med = medicines.find(m => m.id == it.medicine);
-        const supplier = suppliers.find(s => s.id == form.supplier);
+        const med = medicines.find((m) => m.id === Number(it.medicine));
+        const supplier = suppliers.find((s) => s.id === Number(form.supplier));
         csvContent += `${form.invoice_number},${form.invoice_date},${supplier?.supplier_name || 'Generic'},${med?.medicine_name},${it.batch_number},${it.expiry_date},${it.quantity},${it.free_quantity},${it.purchase_rate},${it.mrp},${it.gst_percentage}\n`;
     });
 
@@ -415,10 +403,10 @@ function Purchase() {
                   form.items.map((it, idx) => (
                     <tr key={idx}>
                       <td>
-                        <div style={{ fontWeight: "700" }}>
+                          <div style={{ fontWeight: "700" }}>
                           {
-                            medicines.find((m) => m.id == it.medicine)
-                              ?.medicine_name
+                             medicines.find((m) => m.id === Number(it.medicine))
+                               ?.medicine_name
                           }
                         </div>
                         <div

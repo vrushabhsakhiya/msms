@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Layout from "../components/Layout";
-import { Settings as SettingsIcon, Store, Bell, Palette, CheckCircle2 } from "lucide-react";
-import API from "../services/api";
+import { Store, Bell, Palette, CheckCircle2 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
 function Settings() {

@@ -3,26 +3,16 @@ import API from "../services/api";
 import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import {
-  UserPlus,
   Users,
   Phone,
   Mail,
   Search,
-  Heart,
   UserCircle,
   MapPin,
   Stethoscope,
-  ShieldCheck,
   Edit2,
-  Trash2,
-  Filter,
-  TrendingUp,
   CreditCard,
-  MessageSquare,
-  ChevronRight,
-  MoreVertical,
   X,
-  CreditCard as BalanceIcon
 } from "lucide-react";
 
 function Customers() {

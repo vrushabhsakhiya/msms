@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import API from "../services/api";
 import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
-import { History, Search, Trash2, Printer, Eye, Plus, X, CreditCard, ShoppingCart } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { History, Search, Trash2, Eye, X, CreditCard, ShoppingCart } from "lucide-react";
 
 function Payments() {
     const [activeTab, setActiveTab] = useState("customer"); // 'customer' or 'vendor'
@@ -14,7 +13,6 @@ function Payments() {
     const [loading, setLoading] = useState(true);
     const [selectedItem, setSelectedItem] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const navigate = useNavigate();
 
     const role = (localStorage.getItem("role") || "staff").toLowerCase();
     const permissions = JSON.parse(localStorage.getItem("permissions") || "{}");
@@ -23,7 +21,7 @@ function Payments() {
     const canDeleteSales = role === "admin" || permissions?.sales?.delete;
     const canDeletePurchases = role === "admin" || permissions?.purchase?.delete;
 
-    const fetchAllData = async () => {
+    const fetchAllData = useCallback(async () => {
         setLoading(true);
         try {
             if (canViewSales) {
@@ -43,11 +41,11 @@ function Payments() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [canViewSales, canViewPurchases]);
 
     useEffect(() => {
         fetchAllData();
-    }, []);
+    }, [fetchAllData]);
 
     useEffect(() => {
         const data = activeTab === "customer" ? sales : purchases;
