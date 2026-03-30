@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import { FileText, Download, Printer, Calendar, ShieldCheck } from "lucide-react";
 
@@ -12,7 +13,7 @@ function GSTR2Report() {
 
   const fetchReport = async () => {
     try {
-      const res = await API.get(`purchases/gstr2/?start_date=${filters.start_date}&end_date=${filters.end_date}`);
+      const res = await API.get(API_ENDPOINTS.purchases.gstr2(filters));
       setReport(res.data);
     } catch (err) {
       console.error("Error fetching GSTR2", err);

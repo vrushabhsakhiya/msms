@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import { useNavigate, Link } from "react-router-dom";
 import { Pill, Mail, Lock, ShieldCheck } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
@@ -37,7 +38,7 @@ function Login() {
     }
     setLoading(true);
     try {
-      const res = await API.post("auth/login/", { email, password });
+      const res = await API.post(API_ENDPOINTS.auth.login, { email, password });
       if (res.data.require_otp) {
         setStep(2);
         toast.success(res.data.message || "OTP sent to your email.");
@@ -54,7 +55,7 @@ function Login() {
     if (!otp.trim()) return toast.error("Enter OTP.");
     setLoading(true);
     try {
-      const res = await API.post("auth/verify-login-otp/", { email, otp });
+      const res = await API.post(API_ENDPOINTS.auth.verifyLoginOtp, { email, otp });
       localStorage.setItem("access_token", res.data.access);
       localStorage.setItem("refresh_token", res.data.refresh);
       localStorage.setItem("role", res.data.role);
@@ -78,7 +79,7 @@ function Login() {
     if (!email.trim()) return toast.error("Enter your email.");
     setLoading(true);
     try {
-      await API.post("auth/forgot-password/", { email });
+      await API.post(API_ENDPOINTS.auth.forgotPassword, { email });
       setStep(4);
       setOtp("");
       toast.success("Reset OTP sent if account exists.");
@@ -93,7 +94,7 @@ function Login() {
     if (!otp.trim() || !newPassword.trim()) return toast.error("Both OTP and New Password are required.");
     setLoading(true);
     try {
-      await API.post("auth/reset-password/", { email, otp, new_password: newPassword });
+      await API.post(API_ENDPOINTS.auth.resetPassword, { email, otp, new_password: newPassword });
       toast.success("Password reset! Please login now.");
       setStep(1);
       setPassword("");

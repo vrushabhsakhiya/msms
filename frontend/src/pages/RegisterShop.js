@@ -1,8 +1,8 @@
 import { useState } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import { useNavigate, Link } from "react-router-dom";
 import {
-  Pill,
   User,
   Lock,
   Mail,
@@ -64,7 +64,7 @@ function RegisterShop() {
     if (!validate()) return;
     setLoading(true);
     try {
-      await API.post("auth/register-shop/", form);
+      await API.post(API_ENDPOINTS.auth.registerShop, form);
       setSubmitted(true);
     } catch (err) {
       console.error(err);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import { AlertTriangle, Calendar, Package } from "lucide-react";
 
@@ -12,7 +13,7 @@ function ExpiryAlert() {
 
   const loadData = async () => {
     try {
-      const res = await API.get("inventory/expiry-alert/");
+      const res = await API.get(API_ENDPOINTS.inventory.expiryAlert);
       setMedicines(res.data);
     } catch (err) {
       console.error("Error loading expiry alerts", err);

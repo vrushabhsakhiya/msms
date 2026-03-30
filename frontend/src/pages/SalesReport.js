@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import {
   TrendingUp, FileText, Download, Printer, BadgePercent, ArrowUpRight, BarChart3
@@ -53,20 +54,21 @@ function SalesReport() {
     return () => window.removeEventListener("keydown", onKey);
   }, [handlePrint]);
 
-  const fetchReport = async () => {
-    try {
-      setLoading(true);
-      const query = `?start_date=${filters.start_date}&end_date=${filters.end_date}&payment_mode=${filters.payment_mode}&customer_type=${filters.customer_type}`;
-      const res = await API.get(`sales/report/${query}`);
-      setReport(res.data);
-    } catch (err) {
-      console.error("Error fetching sales report", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    const fetchReport = async () => {
+      try {
+        setLoading(true);
+        const res = await API.get(API_ENDPOINTS.sales.report(filters));
+        setReport(res.data);
+      } catch (err) {
+        console.error("Error fetching sales report", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  useEffect(() => { fetchReport(); }, [filters]);
+    fetchReport();
+  }, [filters.start_date, filters.end_date, filters.payment_mode, filters.customer_type]);
 
   const downloadCSV = () => {
     if (!report) return;

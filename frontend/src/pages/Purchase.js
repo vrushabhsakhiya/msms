@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import {
   ShoppingBag,
@@ -73,7 +74,7 @@ function Purchase() {
 
   const fetchNextCodes = async () => {
     try {
-        const res = await API.get("purchases/next-codes/");
+        const res = await API.get(API_ENDPOINTS.purchases.nextCodes);
         setForm(prev => ({
             ...prev,
             purchase_code: res.data.purchase_code,
@@ -84,7 +85,7 @@ function Purchase() {
 
   const fetchSuppliers = async () => {
     try {
-      const res = await API.get("suppliers/");
+      const res = await API.get(API_ENDPOINTS.suppliers.list);
       setSuppliers(res.data);
     } catch (err) {
       console.error("Error fetching suppliers", err);
@@ -93,7 +94,7 @@ function Purchase() {
 
   const fetchMedicines = async () => {
     try {
-      const res = await API.get("medicines/");
+      const res = await API.get(API_ENDPOINTS.medicines.list());
       setMedicines(res.data);
     } catch (err) {
       console.error("Error fetching medicines", err);
@@ -180,7 +181,7 @@ function Purchase() {
     }
     setLoading(true);
     try {
-      await API.post("purchases/add/", form);
+      await API.post(API_ENDPOINTS.purchases.add, form);
       alert("Inventory Replenished Successfully! ✅");
       setForm({
         purchase_code: `PO-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 100)}`,
@@ -215,7 +216,7 @@ function Purchase() {
 
     try {
       setLoading(true);
-      const res = await API.post("purchases/import-csv/", formData);
+      const res = await API.post(API_ENDPOINTS.purchases.importCsv, formData);
       alert(res.data.message || "Import Successful!");
       fetchMedicines(); // Refresh stock counts
     } catch (err) {

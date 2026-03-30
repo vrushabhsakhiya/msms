@@ -1,5 +1,6 @@
   import { useEffect, useState } from "react";
   import API from "../services/api";
+  import { API_ENDPOINTS } from "../services/endpoints";
   import Layout from "../components/Layout";
   import {
     Users, Trash2, ShieldCheck, UserPlus, Mail, Phone, Lock, Fingerprint, Settings2, Plus, X, Check, ChevronDown, ChevronUp, Pencil, Undo2, Ban, Save
@@ -122,7 +123,10 @@
 
     const fetchInitialData = async () => {
       try {
-        const [uRes, rRes] = await Promise.all([API.get("auth/users/"), API.get("auth/roles/")]);
+        const [uRes, rRes] = await Promise.all([
+          API.get(API_ENDPOINTS.auth.users),
+          API.get(API_ENDPOINTS.auth.roles),
+        ]);
         
         if (uRes.data && uRes.data.users) {
           setUsers(uRes.data.users);
@@ -143,10 +147,10 @@
       e.preventDefault();
       try {
         if (editUserMode) {
-          await API.put(`auth/users/${userForm.id}/update/`, userForm);
+          await API.put(API_ENDPOINTS.auth.userUpdate(userForm.id), userForm);
           toast.success(`User details updated successfully!`, { duration: 4000, icon: '🔵' });
         } else {
-          await API.post("auth/register/", userForm);
+          await API.post(API_ENDPOINTS.auth.register, userForm);
           toast.success(`User ${userForm.full_name || userForm.username} created successfully!`, { duration: 4000 });
         }
         setShowUserModal(false);
@@ -164,7 +168,7 @@
     const handleCreateRole = async (e) => {
       e.preventDefault();
       try {
-        await API.post("auth/roles/", roleForm);
+        await API.post(API_ENDPOINTS.auth.roles, roleForm);
         setShowRoleModal(false);
         setRoleForm({ name: "", description: "", ...DEFAULT_PERMS });
         fetchInitialData();
@@ -177,7 +181,7 @@
     const deleteUser = async (u) => {
       if (!window.confirm("Are you sure you want to delete this user?")) return;
       try {
-        await API.delete(`auth/users/${u.id}/delete/`);
+        await API.delete(API_ENDPOINTS.auth.userDelete(u.id));
         toast(`User ${u.full_name || u.username} deleted successfully!`, { icon: '🟠', duration: 4000 });
         fetchInitialData();
       } catch {
@@ -191,7 +195,7 @@
         if (pw !== null) alert("Password must be at least 8 characters");
         return;
       }
-      API.put(`auth/users/${u.id}/update/`, { password: pw }).then(() => {
+      API.put(API_ENDPOINTS.auth.userUpdate(u.id), { password: pw }).then(() => {
         toast.success("Password reset successfully!");
       }).catch(() => {
         toast.error("Failed to reset password.");
@@ -223,7 +227,7 @@
     const deleteRole = async (id) => {
       if (!window.confirm("Delete this role? Staff using it will lose custom permissions.")) return;
       try {
-        await API.delete(`auth/roles/${id}/`);
+        await API.delete(API_ENDPOINTS.auth.role(id));
         fetchInitialData();
         toast("Role deleted", { icon: "🗑️" });
       } catch {

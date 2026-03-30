@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import {
   History,
@@ -23,7 +24,7 @@ function StockLedger() {
 
   const fetchLedger = async () => {
     try {
-      const res = await API.get("inventory/ledger/");
+      const res = await API.get(API_ENDPOINTS.inventory.ledger);
       setLedger(res.data);
     } catch (err) {
       console.error("Error fetching ledger", err);

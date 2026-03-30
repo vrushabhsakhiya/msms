@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import {
     Calculator,
@@ -18,18 +19,18 @@ function ProfitLoss() {
         end_date: new Date().toISOString().split('T')[0]
     });
 
-    const fetchPL = async () => {
-        try {
-            const res = await API.get(`sales/profit-loss/?start_date=${filters.start_date}&end_date=${filters.end_date}`);
-            setData(res.data);
-        } catch (err) {
-            console.error("Error fetching P&L", err);
-        }
-    };
-
     useEffect(() => {
+        const fetchPL = async () => {
+            try {
+                const res = await API.get(API_ENDPOINTS.sales.profitLoss(filters));
+                setData(res.data);
+            } catch (err) {
+                console.error("Error fetching P&L", err);
+            }
+        };
+
         fetchPL();
-    }, [filters]);
+    }, [filters.start_date, filters.end_date]);
 
     const downloadCSV = () => {
       if (!data) return;

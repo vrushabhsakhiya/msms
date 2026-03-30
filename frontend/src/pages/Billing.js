@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import {
   Search,
@@ -38,7 +39,7 @@ function Billing() {
     formData.append("file", file);
 
     try {
-      const res = await API.post("sales/import-csv/", formData);
+      const res = await API.post(API_ENDPOINTS.sales.importCsv, formData);
       toast.success(res.data.message || "Import Successful!");
     } catch (err) {
       toast.error(err.response?.data?.error || "Error importing CSV");
@@ -111,7 +112,7 @@ function Billing() {
 
   const performSearch = async (value) => {
     try {
-      const res = await API.get(`medicines/search/?q=${value}`);
+      const res = await API.get(API_ENDPOINTS.medicines.search({ q: value }));
       setSearchResults(res.data);
 
       if (quickScan && res.data.length === 1 && (res.data[0].barcode === value || res.data[0].medicine_code === value)) {
@@ -129,7 +130,7 @@ function Billing() {
 
   const autoAddByBarcode = async (med) => {
     try {
-      const batchRes = await API.get(`inventory/batches/${med.id}/`);
+      const batchRes = await API.get(API_ENDPOINTS.inventory.batches(med.id));
       const availableBatches = batchRes.data.filter(b => b.quantity > 0 && new Date(b.expiry_date) > new Date());
 
       if (availableBatches.length > 0) {
@@ -171,7 +172,7 @@ function Billing() {
 
   const fetchCustomers = async (query) => {
     try {
-      const res = await API.get(`customers/search/?q=${query}`);
+      const res = await API.get(API_ENDPOINTS.customers.search({ q: query }));
       setCustomers(res.data);
     } catch (err) {
       console.error("Error fetching customers", err);
@@ -181,7 +182,7 @@ function Billing() {
   const showBatches = async (med) => {
     setSelectedMedicine(med);
     try {
-      const res = await API.get(`inventory/batches/${med.id}/`);
+      const res = await API.get(API_ENDPOINTS.inventory.batches(med.id));
       setBatches(res.data);
       if (res.data.results && res.data.results.length === 0) {
         toast.error("No stock available for this medicine!");
@@ -335,7 +336,7 @@ function Billing() {
           amount: (it.rate * it.quantity * (100 - it.discount_percent)) / 100,
         })),
       };
-      const res = await API.post("sales/add/", billData);
+      const res = await API.post(API_ENDPOINTS.sales.add, billData);
       if (statusArg === "Final") {
         navigate("/invoice", { state: { ...billData, id: res.data.id, invoice_number: res.data.invoice_number } });
       } else {
@@ -636,7 +637,7 @@ function Billing() {
                   setBill(prev => ({ ...prev, customer_mobile: val }));
                   if (val.length === 10) {
                     try {
-                      const res = await API.get(`customers/search/?mobile=${val}`);
+                      const res = await API.get(API_ENDPOINTS.customers.search({ mobile: val }));
                       if (res.data && res.data.id) {
                         setBill(prev => ({
                           ...prev,

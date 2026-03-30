@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import {
   UserPlus, Building, User, Phone, Mail, MapPin, Search,
@@ -71,7 +72,7 @@ function Suppliers() {
   const fetchSuppliers = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await API.get("suppliers/");
+      const res = await API.get(API_ENDPOINTS.suppliers.list);
       setSuppliers(res.data);
     } catch (err) {
       toast.error("Error fetching suppliers");
@@ -153,10 +154,10 @@ function Suppliers() {
 
     try {
       if (editId) {
-        await API.put(`suppliers/update/${editId}/`, form);
+        await API.put(API_ENDPOINTS.suppliers.update(editId), form);
         toast.success(`Supplier details updated!`);
       } else {
-        await API.post("suppliers/add/", form);
+        await API.post(API_ENDPOINTS.suppliers.add, form);
         toast.success(`Supplier ${form.supplier_name} added successfully!`);
       }
       fetchSuppliers();
@@ -179,7 +180,7 @@ function Suppliers() {
     if (!canEdit) return;
     try {
       const activeState = !sup.is_active;
-      await API.patch(`suppliers/update/${sup.id}/`, { is_active: activeState });
+      await API.patch(API_ENDPOINTS.suppliers.update(sup.id), { is_active: activeState });
       toast.success(`Supplier marked as ${activeState ? 'Active' : 'Inactive'}`);
       setSuppliers(prev => prev.map(s => s.id === sup.id ? { ...s, is_active: activeState } : s));
     } catch (err) {
@@ -217,7 +218,7 @@ function Suppliers() {
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Are you sure you want to delete ${name}? This action cannot be undone.`)) return;
     try {
-      await API.delete(`suppliers/delete/${id}/`);
+      await API.delete(API_ENDPOINTS.suppliers.delete(id));
       toast.success("Supplier removed from system");
       fetchSuppliers();
     } catch (err) {
@@ -747,4 +748,3 @@ function Suppliers() {
 }
 
 export default Suppliers;
-

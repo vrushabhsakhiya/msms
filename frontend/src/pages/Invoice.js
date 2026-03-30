@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { Printer, ArrowLeft, Pill, CheckCircle, Smartphone, MapPin, Mail, Globe, MessageSquare, Send } from "lucide-react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 
 function Invoice() {
   const location = useLocation();
@@ -48,7 +49,7 @@ function Invoice() {
       return;
     }
     try {
-      const res = await API.post(`sales/send-e-invoice/${bill.id}/`, { method });
+      const res = await API.post(API_ENDPOINTS.sales.sendEInvoice(bill.id), { method });
       alert(res.data.message);
     } catch (err) {
       alert("Error sending notification: " + (err.response?.data?.error || "Unknown error"));

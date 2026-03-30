@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import Layout from "../components/Layout";
-import { User, Shield, Mail, Key, Store } from "lucide-react";
+import { Shield, Mail, Key, Store } from "lucide-react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 
 function Profile() {
     const userName = localStorage.getItem("user") || "AdminUser";
@@ -15,7 +16,7 @@ function Profile() {
         // Or better, fetch shop details if an endpoint exists. For now, try fetching users.
         const fetchShopInfo = async () => {
             try {
-                const res = await API.get("auth/users/");
+                const res = await API.get(API_ENDPOINTS.auth.users);
                 const adminUser = res.data.find(u => u.role === 'admin');
                 if (adminUser) setOwnerName(adminUser.full_name || adminUser.username);
                 else setOwnerName("System Admin");

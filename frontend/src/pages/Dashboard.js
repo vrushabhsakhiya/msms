@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import {
   TrendingUp,
@@ -49,7 +50,7 @@ function Dashboard() {
     try {
       setLoading(true);
       setError(false);
-      const res = await API.get(`inventory/dashboard/?days=${rangeDays}`);
+      const res = await API.get(API_ENDPOINTS.inventory.dashboard({ days: rangeDays }));
       setData(res.data);
     } catch (err) {
       console.error("Error loading dashboard", err);

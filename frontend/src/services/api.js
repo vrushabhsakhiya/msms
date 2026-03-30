@@ -1,5 +1,6 @@
 import axios from "axios";
 import toast from "react-hot-toast";
+import { API_ENDPOINTS } from "./endpoints";
 
 /**
  * 🛡️ Hardened API Service Layer
@@ -63,7 +64,7 @@ API.interceptors.response.use(
       if (refreshToken) {
         try {
           const response = await axios.post(
-            `${API.defaults.baseURL}auth/token/refresh/`, 
+            `${API.defaults.baseURL}${API_ENDPOINTS.auth.tokenRefresh}`,
             { refresh: refreshToken }
           );
 

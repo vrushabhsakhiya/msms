@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import {
   LayoutDashboard,
   Pill,
@@ -42,14 +43,14 @@ function Sidebar({ collapsed, setCollapsed }) {
 
   const fetchBranding = async () => {
     try {
-      const res = await API.get("auth/branding/");
+      const res = await API.get(API_ENDPOINTS.auth.branding);
       setBranding(res.data);
     } catch (_) { }
   };
 
   const fetchAlerts = async () => {
     try {
-      const res = await API.get("inventory/alerts/expiry/");
+      const res = await API.get(API_ENDPOINTS.inventory.alerts.expiry);
       setAlertCount(res.data.length);
     } catch (_) { }
   };

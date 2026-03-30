@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import { 
     History, Search, User, Activity, Clock, FileText, Filter, Calendar, Terminal, Database, ShieldAlert
@@ -18,7 +19,7 @@ function AuditLogs() {
     const fetchLogs = async () => {
         try {
             setLoading(true);
-            const res = await API.get("auth/audit-logs/");
+            const res = await API.get(API_ENDPOINTS.auth.auditLogs);
             setLogs(res.data);
         } catch (err) {
             console.error("Error fetching audit logs", err);

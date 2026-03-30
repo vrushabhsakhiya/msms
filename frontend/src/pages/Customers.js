@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import {
   UserPlus,
@@ -58,7 +59,7 @@ function Customers() {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      const res = await API.get("customers/");
+      const res = await API.get(API_ENDPOINTS.customers.list);
       setCustomers(res.data);
     } catch (err) {
       console.error("Error fetching customers", err);
@@ -83,7 +84,7 @@ function Customers() {
   const saveCustomer = async (e) => {
     e.preventDefault();
     try {
-      await API.put(`customers/update/${editingId}/`, form);
+      await API.put(API_ENDPOINTS.customers.update(editingId), form);
       alert("Customer profile updated successfully! ✅");
       fetchCustomers();
       setShowForm(false);
@@ -97,7 +98,7 @@ function Customers() {
     setShowLedger(true);
     setLedgerLoading(true);
     try {
-      const res = await API.get(`sales/?customer_id=${cust.id}`);
+      const res = await API.get(API_ENDPOINTS.sales.list({ customer_id: cust.id }));
       setLedgerData(res.data);
     } catch (err) {
       console.error("Error fetching ledger", err);
@@ -402,4 +403,3 @@ const tdStyle = {
 };
 
 export default Customers;
-

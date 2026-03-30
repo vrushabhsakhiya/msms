@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import {
     BadgePercent,
@@ -18,21 +19,21 @@ function ProductPerformance() {
         end_date: new Date().toISOString().split('T')[0]
     });
 
-    const fetchData = async () => {
-        try {
-            setLoading(true);
-            const res = await API.get(`sales/performance/?start_date=${filters.start_date}&end_date=${filters.end_date}`);
-            setData(res.data);
-        } catch (err) {
-            console.error("Error fetching performance", err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
+        const fetchData = async () => {
+            try {
+                setLoading(true);
+                const res = await API.get(API_ENDPOINTS.sales.performance(filters));
+                setData(res.data);
+            } catch (err) {
+                console.error("Error fetching performance", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
         fetchData();
-    }, [filters]);
+    }, [filters.start_date, filters.end_date]);
 
     const downloadCSV = () => {
         if (!data) return;

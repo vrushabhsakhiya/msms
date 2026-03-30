@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import {
   Plus, Pill, Search, AlertTriangle, CheckCircle, XCircle,
@@ -154,13 +155,13 @@ function Medicines() {
   const fetchAll = useCallback(async (page = 1) => {
     try {
       setLoading(true);
-      const mRes = await API.get(`medicines/?page=${page}`);
+      const mRes = await API.get(API_ENDPOINTS.medicines.list({ page }));
       setMedicines(mRes.data);
       if (mRes.data._pagination) {
         setPageInfo(mRes.data._pagination);
       }
       try {
-        const sRes = await API.get("suppliers/", { silent: true });
+        const sRes = await API.get(API_ENDPOINTS.suppliers.list, { silent: true });
         setSuppliers(sRes.data);
       } catch (e) {
         setSuppliers([]);
@@ -264,10 +265,10 @@ function Medicines() {
       if (payload.max_stock_level === "") payload.max_stock_level = 0;
 
       if (editId) {
-        await API.put(`medicines/${editId}/update/`, payload);
+        await API.put(API_ENDPOINTS.medicines.update(editId), payload);
         addToast(`Medicine "${form.medicine_name}" updated successfully`, "info");
       } else {
-        await API.post("medicines/add/", payload);
+        await API.post(API_ENDPOINTS.medicines.add, payload);
         addToast(`Medicine "${form.medicine_name}" added successfully`, "success");
       }
       await fetchAll();
@@ -306,7 +307,7 @@ const handleDelete = async (id, name) => {
     if (!confirm(`Delete "${name}"? This action cannot be undone.`)) return;
     
     try {
-      await API.delete(`medicines/${id}/delete/`);
+      await API.delete(API_ENDPOINTS.medicines.delete(id));
         addToast(`Medicine "${name}" deleted.`, "warning");
         fetchAll();
       } catch (error) {
@@ -316,7 +317,7 @@ const handleDelete = async (id, name) => {
 
     const handleExportCSV = async () => {
       try {
-        const response = await API.get('medicines/export/', { responseType: 'blob' });
+        const response = await API.get(API_ENDPOINTS.medicines.exportCsv, { responseType: 'blob' });
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
         link.href = url;
@@ -341,7 +342,7 @@ const handleDelete = async (id, name) => {
       addToast("Importing medicines... Please wait.", "info");
 
       try {
-        await API.post('medicines/import/', formData, {
+        await API.post(API_ENDPOINTS.medicines.importCsv, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         addToast("Medicines imported successfully!", "success");

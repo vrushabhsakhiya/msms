@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import PropTypes from 'prop-types';
 import {
@@ -80,9 +81,9 @@ function Inventory() {
 
             // Always fetch summary + alerts (needed for both Overview panels and Alerts tab)
             const [sRes, lRes, eRes] = await Promise.all([
-                API.get("inventory/summary/"),
-                API.get("inventory/alerts/low-stock/"),
-                API.get("inventory/alerts/expiry/"),
+                API.get(API_ENDPOINTS.inventory.summary),
+                API.get(API_ENDPOINTS.inventory.alerts.lowStock),
+                API.get(API_ENDPOINTS.inventory.alerts.expiry),
             ]);
             setSummary(sRes.data);
             setLowStock(lRes.data);
@@ -90,11 +91,10 @@ function Inventory() {
 
             // Tab-specific data
             if (activeTab === "movement") {
-                const query = `?medicine=${moveFilter.medicine}&type=${moveFilter.type}`;
-                const mRes = await API.get(`inventory/movements/${query}`);
+                const mRes = await API.get(API_ENDPOINTS.inventory.movements(moveFilter));
                 setMovements(mRes.data);
             } else if (activeTab === "adjustment") {
-                const mRes = await API.get("medicines/");
+                const mRes = await API.get(API_ENDPOINTS.medicines.list());
                 setMedicines(mRes.data);
             }
         } catch (err) {
@@ -111,7 +111,7 @@ function Inventory() {
     const handleMedicineChange = async (medId) => {
         setAdjForm({ ...adjForm, medicine: medId, batch: "" });
         if (medId) {
-            const res = await API.get(`inventory/batches/${medId}/`);
+            const res = await API.get(API_ENDPOINTS.inventory.batches(medId));
             setBatches(res.data);
         }
     };
@@ -119,7 +119,7 @@ function Inventory() {
     const handleAdjustment = async (e) => {
         e.preventDefault();
         try {
-            await API.post("inventory/adjust/", adjForm);
+            await API.post(API_ENDPOINTS.inventory.adjust, adjForm);
             alert("Stock adjustment successfully recorded! ✅");
             setAdjForm({ medicine: "", batch: "", adjustment_type: "ADD", quantity: 0, reason: "Correction", remarks: "" });
             fetchData();

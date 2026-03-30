@@ -2,6 +2,7 @@ import { Search, Bell, ChevronDown, AlertTriangle, Calendar, CreditCard, Shoppin
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 
 function TopBar({ title, subtitle, actions, icon }) {
   const navigate = useNavigate();
@@ -22,7 +23,7 @@ function TopBar({ title, subtitle, actions, icon }) {
 
   const loadNotifications = async () => {
     try {
-      const res = await API.get("inventory/notifications/");
+      const res = await API.get(API_ENDPOINTS.inventory.notifications);
       setNotifications(res.data);
     } catch (error) {
       console.error("Failed to load notifications:", error);

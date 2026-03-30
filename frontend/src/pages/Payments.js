@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import { History, Search, Trash2, Printer, Eye, Plus, X, CreditCard, ShoppingCart } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -27,13 +28,13 @@ function Payments() {
         try {
             if (canViewSales) {
                 try {
-                    const salesRes = await API.get("sales/", { silent: true });
+                    const salesRes = await API.get(API_ENDPOINTS.sales.list(), { silent: true });
                     setSales(salesRes.data);
                 } catch(e) { setSales([]); }
             }
             if (canViewPurchases) {
                 try {
-                    const purchasesRes = await API.get("purchases/", { silent: true });
+                    const purchasesRes = await API.get(API_ENDPOINTS.purchases.list, { silent: true });
                     setPurchases(purchasesRes.data);
                 } catch(e) { setPurchases([]); }
             }
@@ -85,7 +86,7 @@ function Payments() {
             return;
         }
         try {
-            const endpoint = isSale ? `sales/delete/${id}/` : `purchases/delete/${id}/`;
+            const endpoint = isSale ? API_ENDPOINTS.sales.delete(id) : API_ENDPOINTS.purchases.delete(id);
             await API.delete(endpoint);
             alert("Bill successfully deleted and stock adjusted. ✅");
             fetchAllData();

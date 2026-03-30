@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
+import { API_ENDPOINTS } from "../services/endpoints";
 import Layout from "../components/Layout";
 import {
   ShoppingCart,
@@ -28,7 +29,7 @@ function PurchaseHistory() {
   const fetchPurchases = async () => {
     try {
       setLoading(true);
-      const res = await API.get("purchases/");
+      const res = await API.get(API_ENDPOINTS.purchases.list);
       setPurchases(res.data);
     } catch (err) {
       console.error("Error fetching purchases:", err);
@@ -245,7 +246,7 @@ function PurchaseHistory() {
                             onClick={async () => {
                               if (window.confirm("Mark this invoice as Paid? This will update your ledger.")) {
                                 try {
-                                  await API.patch(`purchases/update/${p.id}/`, { payment_status: 'paid' });
+                                  await API.patch(API_ENDPOINTS.purchases.update(p.id), { payment_status: "paid" });
                                   fetchPurchases();
                                 } catch (err) {
                                   alert("Failed to update status");
