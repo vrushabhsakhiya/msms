@@ -12,10 +12,38 @@ import {
   Plus,
   Minus,
   Tag,
+  FileUp,
+  X,
 } from "lucide-react";
+import toast from "react-hot-toast";
+
+// Reusable Debounce Hook
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 function Billing() {
   const navigate = useNavigate();
+
+  const handleImportCSV = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await API.post("sales/import-csv/", formData);
+      toast.success(res.data.message || "Import Successful!");
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Error importing CSV");
+    }
+  };
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [selectedMedicine, setSelectedMedicine] = useState(null);
@@ -23,6 +51,10 @@ function Billing() {
   const [quickScan, setQuickScan] = useState(true); // Default ON
   const [billItems, setBillItems] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const role = (localStorage.getItem("role") || "staff").toLowerCase();
+  const permissions = JSON.parse(localStorage.getItem("permissions") || "{}");
+  const canManageCustomers = role === "admin" || permissions?.sales?.create || permissions?.sales?.update;
+  const canCreateSale = role === "admin" || permissions?.sales?.create;
   const [bill, setBill] = useState({
     invoice_number: `INV-${Date.now().toString().slice(-6)}`,
     customer_name: "",
@@ -66,23 +98,33 @@ function Billing() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [billItems, bill]); // Added dependencies for shortcuts to work with latest state
 
-  const handleSearch = async (value) => {
-    setSearch(value);
-    if (value.length < 1) {
+  // Debounced search trigger: Only fires 300ms after user stops typing
+  const debouncedSearch = useDebounce(search, 300);
+
+  useEffect(() => {
+    if (debouncedSearch.length >= 2) {
+      performSearch(debouncedSearch);
+    } else {
       setSearchResults([]);
-      return;
     }
+  }, [debouncedSearch]);
+
+  const performSearch = async (value) => {
     try {
       const res = await API.get(`medicines/search/?q=${value}`);
       setSearchResults(res.data);
 
-      // Barcode Quick Scan Logic: If exactly one match and quickScan is on
       if (quickScan && res.data.length === 1 && (res.data[0].barcode === value || res.data[0].medicine_code === value)) {
         await autoAddByBarcode(res.data[0]);
       }
     } catch (err) {
       console.error("Search error", err);
     }
+  };
+
+  const handleSearch = (value) => {
+    setSearch(value);
+    // Let the useEffect handle the actual API call
   };
 
   const autoAddByBarcode = async (med) => {
@@ -120,7 +162,7 @@ function Billing() {
         setSearch("");
         setSearchResults([]);
       } else {
-        alert(`No stock available for scanned item: ${med.medicine_name}`);
+        toast.error(`No stock available for: ${med.medicine_name}`);
       }
     } catch (err) {
       console.error("Auto-add error", err);
@@ -141,12 +183,14 @@ function Billing() {
     try {
       const res = await API.get(`inventory/batches/${med.id}/`);
       setBatches(res.data);
-      if (res.data.length === 0) {
-        alert("No stock available for this medicine!");
+      if (res.data.results && res.data.results.length === 0) {
+        toast.error("No stock available for this medicine!");
         setSelectedMedicine(null);
+      } else {
+          setBatches(res.data.results || res.data); // Support both paginated and flat
       }
     } catch (err) {
-      alert("Error fetching batches");
+      toast.error("Error fetching batches");
     }
   };
 
@@ -159,7 +203,7 @@ function Billing() {
 
     if (existingItem) {
       if (existingItem.quantity + 1 > batch.quantity) {
-        alert("Not enough stock in this batch!");
+        toast.error("Not enough stock in this batch!");
         return;
       }
       setBillItems(
@@ -208,7 +252,7 @@ function Billing() {
           if (field === "quantity") {
             newValue = parseInt(value) || 0;
             if (newValue > item.available_stock) {
-              alert(`Only ${item.available_stock} items available`);
+              toast.error(`Only ${item.available_stock} items available`);
               newValue = item.available_stock;
             }
           }
@@ -261,14 +305,15 @@ function Billing() {
       net_amount: roundedNet,
       total_items: billItems.length,
       total_quantity: billItems.reduce((acc, item) => acc + item.quantity, 0),
-      amount_received: roundedNet,
+      // Only auto-sync amount_received if user hasn't manually changed it
+      ...(false ? {} : { amount_received: roundedNet }),
     }));
 
   }, [billItems]);
 
   const createSale = async (statusArg = "Final") => {
     if (billItems.length === 0) {
-      alert("Please add at least one medicine to generate bill");
+      toast.error("Please add at least one medicine to generate bill");
       return;
     }
     
@@ -300,7 +345,7 @@ function Billing() {
       }
     } catch (err) {
       const errorDetail = err.response?.data ? JSON.stringify(err.response.data) : (err.message || "Unknown error");
-      alert("Error generating bill: " + errorDetail);
+      toast.error("Error generating bill: " + errorDetail);
     }
   };
 
@@ -336,24 +381,6 @@ function Billing() {
             </div>
           </div>
         </div>
-        <div style={{ textAlign: "right" }}>
-          <div
-            style={{
-              padding: "4px 12px",
-              borderRadius: "6px",
-              backgroundColor: "white",
-              border: "1px solid var(--border)",
-              fontWeight: "700",
-              fontSize: "0.9rem"
-            }}
-          >
-            <Tag size={14} className="text-primary" style={{ marginRight: "6px" }} />
-            {bill.invoice_number}
-          </div>
-          <p style={{ margin: "4px 0 0 0", color: "var(--text-muted)", fontSize: "0.75rem" }}>
-            Date: {new Date().toLocaleDateString()} | Time: {new Date().toLocaleTimeString()}
-          </p>
-        </div>
       </div>
 
       <div className="billing-grid">
@@ -362,22 +389,13 @@ function Billing() {
           {/* Medicine Search Section */}
           <div className="card" style={{ padding: "1rem" }}>
             <div style={{ display: "flex", gap: "10px" }}>
-              <div style={{ position: "relative", flex: 1 }}>
-                <Search
-                  style={{
-                    position: "absolute",
-                    left: "12px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    color: "var(--text-muted)",
-                  }}
-                  size={18}
-                />
+              <div className="search-wrapper">
+                <Search className="search-icon" size={18} />
                 <input
                   id="medicine-search"
                   placeholder="Search Medicine (Name / Generic / Barcode)..."
                   className="custom-input"
-                  style={{ paddingLeft: "40px" }}
+                  style={{ paddingLeft: "42px" }}
                   value={search}
                   onChange={(e) => handleSearch(e.target.value)}
                   autoComplete="off"
@@ -417,46 +435,98 @@ function Billing() {
             </div>
           </div>
 
-          {/* Batch Selection Detail */}
+          {/* Batch Selection Modal (Drawer) */}
           {selectedMedicine && (
-            <div className="card" style={{ border: "2px solid var(--primary)", animation: "fadeIn 0.3s ease" }}>
-              <h4 style={{ margin: "0 0 1rem 0" }}>Select Batch: {selectedMedicine.medicine_name}</h4>
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Batch</th>
-                      <th>Expiry</th>
-                      <th>MRP</th>
-                      <th>Stock</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {batches.map((b) => (
-                      <tr key={b.id}>
-                        <td style={{ fontWeight: "700" }}>{b.batch_number}</td>
-                        <td>
-                          <span style={{ color: new Date(b.expiry_date) < new Date() ? 'var(--danger)' : 'inherit' }}>
-                            {b.expiry_date}
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: "700" }}>₹{b.mrp}</td>
-                        <td>{b.quantity}</td>
-                        <td>
-                          <button
-                            className="btn-primary"
-                            style={{ padding: "4px 10px", fontSize: "0.75rem" }}
-                            onClick={() => selectBatch(b)}
-                            disabled={b.quantity <= 0 || new Date(b.expiry_date) < new Date()}
-                          >
-                            Add
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div 
+              style={{
+                position: "fixed",
+                top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: "rgba(0,0,0,0.5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 2000,
+                backdropFilter: "blur(4px)",
+                animation: "fadeIn 0.2s ease"
+              }}
+              onClick={() => setSelectedMedicine(null)}
+            >
+              <div 
+                className="card" 
+                style={{ 
+                  width: "100%", 
+                  maxWidth: "700px", 
+                  borderRadius: "16px", 
+                  boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                  border: "none",
+                  padding: 0,
+                  overflow: "hidden"
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div style={{ backgroundColor: "var(--primary)", padding: "1.25rem", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: "800" }}>{selectedMedicine.medicine_name}</h3>
+                    <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", opacity: 0.8 }}>{selectedMedicine.generic_name} | {selectedMedicine.company}</p>
+                  </div>
+                  <button onClick={() => setSelectedMedicine(null)} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", borderRadius: "8px", padding: "8px", cursor: "pointer", display: "flex", alignItems: "center" }}>
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div style={{ padding: "1.5rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem", alignItems: "center" }}>
+                    <h4 style={{ margin: 0, color: "var(--text-main)" }}>Select Stock Batch</h4>
+                    <span className="badge bg-primary-light text-primary">Rack: {selectedMedicine.rack_number || 'N/A'}</span>
+                  </div>
+
+                  <div className="table-container" style={{ border: "1px solid var(--border)", borderRadius: "8px", maxHeight: "350px", overflowY: "auto" }}>
+                    <table className="table">
+                      <thead style={{ position: "sticky", top: 0, zIndex: 10, background: "#f8fafc" }}>
+                        <tr>
+                          <th>Batch No.</th>
+                          <th>Expiry</th>
+                          <th>MRP</th>
+                          <th>Stock</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {batches.map((b) => (
+                          <tr key={b.id}>
+                            <td style={{ fontWeight: "700" }}>{b.batch_number}</td>
+                            <td>
+                              <span style={{ 
+                                color: new Date(b.expiry_date) < new Date() ? 'var(--danger)' : 
+                                       new Date(b.expiry_date) < new Date(new Date().setMonth(new Date().getMonth() + 6)) ? 'var(--warning)' : 'inherit',
+                                fontWeight: "600"
+                              }}>
+                                {b.expiry_date}
+                              </span>
+                            </td>
+                            <td style={{ fontWeight: "800", color: "var(--primary)" }}>₹{b.mrp}</td>
+                            <td>
+                              <span style={{ fontWeight: "700", color: b.quantity < 20 ? 'var(--danger)' : 'inherit' }}>
+                                {b.quantity}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                className="btn-primary"
+                                style={{ padding: "6px 16px", borderRadius: "8px" }}
+                                onClick={() => selectBatch(b)}
+                                disabled={b.quantity <= 0 || new Date(b.expiry_date) < new Date()}
+                              >
+                                {b.quantity <= 0 ? "Out of Stock" : new Date(b.expiry_date) < new Date() ? "Expired" : "Add to Bill"}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -542,13 +612,15 @@ function Billing() {
           <div className="card">
             <h4 style={{ margin: "0 0 1rem 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               Customer Details
-              <button
-                className="btn-secondary"
-                style={{ padding: "4px 8px", fontSize: "0.7rem" }}
-                onClick={() => navigate("/customers")}
-              >
-                <Plus size={12} style={{ marginRight: "4px" }} /> New Customer
-              </button>
+              {canManageCustomers && (
+                <button
+                  className="btn-secondary"
+                  style={{ padding: "4px 8px", fontSize: "0.7rem" }}
+                  onClick={() => navigate("/customers")}
+                >
+                  <Plus size={12} style={{ marginRight: "4px" }} /> New Customer
+                </button>
+              )}
             </h4>
 
             <div className="form-group" style={{ marginBottom: "10px" }}>
@@ -574,7 +646,7 @@ function Billing() {
                         // Add customer info to state so we can display history
                         setBill(prev => ({ ...prev, _customerInfo: res.data, isNewMatch: false }));
                       } else {
-                        if (bill.customer_name === "Walk-in Customer") {
+                        if (bill.customer_name === "Walk-inCustomer") {
                           setBill(prev => ({ ...prev, customer_name: "" }));
                         }
                         setBill(prev => ({ ...prev, _customerInfo: null, isNewMatch: val.length === 10 }));
@@ -596,7 +668,6 @@ function Billing() {
                     <span>Total Bills: <strong>{bill._customerInfo.bill_count || 0}</strong></span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Outstanding: <strong>₹{bill._customerInfo.outstanding_balance || 0}</strong></span>
                     <span>Total Purchase: <strong>₹{bill._customerInfo.total_purchases || 0}</strong></span>
                   </div>
                 </div>
@@ -618,7 +689,7 @@ function Billing() {
                   list="customer-names"
                   className="custom-input"
                   value={bill.customer_name}
-                  placeholder="Walk-in Customer"
+                  placeholder="Customer Name"
                   onChange={(e) => {
                     const val = e.target.value;
                     setBill(prev => ({ ...prev, customer_name: val }));
@@ -720,25 +791,15 @@ function Billing() {
               </select>
             </div>
 
-            <div className="grid-cols-2" style={{ marginTop: "10px" }}>
+            <div style={{ marginTop: "10px" }}>
               <div className="form-group">
-                <label>Amount Received</label>
-                <input
-                  type="number"
-                  className="custom-input"
-                  style={{ fontWeight: 700, fontSize: "1rem" }}
-                  value={bill.amount_received}
-                  onChange={(e) => setBill({ ...bill, amount_received: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
-              <div className="form-group">
-                <label>Balance Return</label>
+                <label>Total Amount</label>
                 <input
                   type="text"
                   className="custom-input"
-                  style={{ fontWeight: 700, color: "var(--primary)", backgroundColor: "#f0f9ff" }}
+                  style={{ fontWeight: 700, fontSize: "1rem", backgroundColor: "#f0fdf4", color: "#16a34a" }}
                   readOnly
-                  value={`₹${Math.max(0, bill.amount_received - bill.net_amount).toFixed(2)}`}
+                  value={`₹${bill.net_amount.toFixed(2)}`}
                 />
               </div>
             </div>
@@ -747,11 +808,15 @@ function Billing() {
               <button
                 className="btn-primary btn-xl"
                 onClick={() => createSale("Final")}
-                disabled={billItems.length === 0}
+                disabled={billItems.length === 0 || !canCreateSale}
               >
                 <Printer size={20} style={{ marginRight: "10px" }} /> GENERATE & PRINT (F9)
               </button>
-              <button className="btn-secondary" onClick={() => createSale("Draft")}>
+              <button 
+                className="btn-secondary" 
+                onClick={() => createSale("Draft")}
+                disabled={billItems.length === 0 || !canCreateSale}
+              >
                 Save as Draft (F8)
               </button>
               <button className="btn-warning" onClick={() => createSale("Hold")}>

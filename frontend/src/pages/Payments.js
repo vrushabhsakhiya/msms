@@ -15,15 +15,28 @@ function Payments() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const navigate = useNavigate();
 
+    const role = (localStorage.getItem("role") || "staff").toLowerCase();
+    const permissions = JSON.parse(localStorage.getItem("permissions") || "{}");
+    const canViewSales = role === "admin" || permissions?.sales?.read;
+    const canViewPurchases = role === "admin" || permissions?.purchase?.read;
+    const canDeleteSales = role === "admin" || permissions?.sales?.delete;
+    const canDeletePurchases = role === "admin" || permissions?.purchase?.delete;
+
     const fetchAllData = async () => {
         setLoading(true);
         try {
-            const [salesRes, purchasesRes] = await Promise.all([
-                API.get("sales/"),
-                API.get("purchases/")
-            ]);
-            setSales(salesRes.data);
-            setPurchases(purchasesRes.data);
+            if (canViewSales) {
+                try {
+                    const salesRes = await API.get("sales/", { silent: true });
+                    setSales(salesRes.data);
+                } catch(e) { setSales([]); }
+            }
+            if (canViewPurchases) {
+                try {
+                    const purchasesRes = await API.get("purchases/", { silent: true });
+                    setPurchases(purchasesRes.data);
+                } catch(e) { setPurchases([]); }
+            }
         } catch (err) {
             console.error("Error fetching payments history", err);
         } finally {
@@ -108,6 +121,7 @@ function Payments() {
 
             {/* Excel-style Tabs */}
             <div style={{ display: 'flex', gap: '5px', marginBottom: '-1px', position: 'relative', zIndex: 1 }}>
+                {canViewSales && (
                 <button
                     onClick={() => { setActiveTab("customer"); setSearchTerm(""); }}
                     style={{
@@ -129,6 +143,8 @@ function Payments() {
                 >
                     <CreditCard size={18} /> Customer Billing (Incoming)
                 </button>
+                )}
+                {canViewPurchases && (
                 <button
                     onClick={() => { setActiveTab("vendor"); setSearchTerm(""); }}
                     style={{
@@ -150,6 +166,7 @@ function Payments() {
                 >
                     <ShoppingCart size={18} /> Vendor Payments (Outgoing)
                 </button>
+                )}
             </div>
 
             <div className="card" style={{ borderTopLeftRadius: 0 }}>
@@ -171,7 +188,6 @@ function Payments() {
                                     <th>Supplier</th>
                                     <th>Invoice No.</th>
                                     <th>Date</th>
-                                    <th>Status</th>
                                     <th style={{ textAlign: "right" }}>Total Amount</th>
                                     <th style={{ textAlign: "right" }}>Actions</th>
                                 </tr>
@@ -215,14 +231,6 @@ function Payments() {
                                                 <td>{item.supplier_name}</td>
                                                 <td>{item.invoice_number}</td>
                                                 <td>{new Date(item.created_at).toLocaleDateString()}</td>
-                                                <td>
-                                                    <span className="badge" style={{
-                                                        backgroundColor: item.payment_status === "paid" ? "rgba(16, 185, 129, 0.1)" : "rgba(245, 158, 11, 0.1)",
-                                                        color: item.payment_status === "paid" ? "#10b981" : "#f59e0b"
-                                                    }}>
-                                                        {item.payment_status?.toUpperCase()}
-                                                    </span>
-                                                </td>
                                                 <td style={{ fontWeight: "800", textAlign: "right" }}>₹{item.net_amount}</td>
                                             </>
                                         )}
@@ -230,9 +238,11 @@ function Payments() {
                                             <button onClick={() => handleViewDetails(item)} title="View Details" style={{ background: "none", border: "none", color: "var(--info)", cursor: "pointer", marginRight: "10px" }}>
                                                 <Eye size={18} />
                                             </button>
-                                            <button onClick={() => handleDelete(item.id, activeTab === 'customer')} title="Delete Bill" style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer" }}>
-                                                <Trash2 size={18} />
-                                            </button>
+                                            {(activeTab === 'customer' ? canDeleteSales : canDeletePurchases) && (
+                                                <button onClick={() => handleDelete(item.id, activeTab === 'customer')} title="Delete Bill" style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer" }}>
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))

@@ -4,7 +4,7 @@ import Layout from "../components/Layout";
 import {
   UserPlus, Building, User, Phone, Mail, MapPin, Search,
   Warehouse, Edit, Trash2, ShieldCheck, ShieldAlert, CreditCard,
-  Eye, CheckCircle, XCircle
+  Eye
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
@@ -84,30 +84,15 @@ function Suppliers() {
     fetchSuppliers();
   }, [fetchSuppliers]);
 
-  // Real-time GST Validation helper
-  const isGSTValid = (gst, state) => {
-    if (!gst || gst.trim() === "") return true; // Optional: true if empty
-    const cleanGst = gst.trim().toUpperCase();
-
-    // Regular expression for GST format
-    const pattern = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-
-    // If it doesn't match the general format, it's invalid
-    if (cleanGst.length === 15 && !pattern.test(cleanGst)) return false;
-
-    // State code check (First 2 digits)
-    // Only check if we have at least 2 digits to check
-    if (cleanGst.length >= 2 && state && GST_STATE_CODES[state]) {
-      if (cleanGst.substring(0, 2) !== GST_STATE_CODES[state]) return false;
-    }
-
-    // If it's less than 15 chars, it's not "valid" yet but not necessarily "wrong" (so return null/true for real-time UI)
-    return cleanGst.length === 15 ? pattern.test(cleanGst) : true;
-  };
 
   const setF = (key, val) => {
     setForm(prev => {
-      const updated = { ...prev, [key]: val };
+      let finalVal = val;
+      if (key === "pan_number" || key === "gst_number") {
+        finalVal = val.toUpperCase();
+      }
+
+      const updated = { ...prev, [key]: finalVal };
 
       // Auto-generate code if name is entered and not editing
       if (key === "supplier_name" && !editId && !updated.supplier_code) {
@@ -140,7 +125,7 @@ function Suppliers() {
 
     // GST validation removed - now accepts any format or can be empty
 
-    if (form.pan_number && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(form.pan_number.trim())) {
+    if (form.pan_number?.trim() && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i.test(form.pan_number.trim())) {
       e.pan_number = "Invalid format: AAAAA0000A";
     }
 
@@ -275,51 +260,65 @@ function Suppliers() {
       title="Supplier Management"
       subtitle="Manage supply chain partnerships and procurement contacts"
       icon={<Building size={24} />}
-      actions={
-        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          <div className="card" style={{ padding: "6px 12px", margin: 0, backgroundColor: "var(--primary-light)", borderLeft: "4px solid var(--primary)" }}>
-            <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--primary)" }}>
-              {suppliers.length} Total
-            </span>
-          </div>
-          {canEdit && (
-            <button className="btn-primary" onClick={openAdd} style={{ padding: "8px 16px" }}>
-              <UserPlus size={16} /> Add Supplier
-            </button>
-          )}
-        </div>
-      }
     >
       <Toaster position="top-right" />
 
       {/* Filter & Search Bar */}
       <div className="card" style={{ padding: "0.75rem", marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ position: "relative", width: "100%", maxWidth: "400px" }}>
-          <Search style={{ position: "absolute", left: "15px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} size={16} />
+        <div className="search-wrapper" style={{ maxWidth: "400px" }}>
+          <Search className="search-icon" size={16} />
           <input
             className="custom-input"
             placeholder="Search by name, GST, mobile, code..."
-            style={{ border: "none", paddingLeft: "45px", backgroundColor: "transparent" }}
+            style={{ paddingLeft: "42px" }}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
 
-        <div style={{ display: "flex", background: "#f1f5f9", padding: "4px", borderRadius: "8px", gap: "4px" }}>
-          {["all", "active", "inactive"].map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              style={{
-                padding: "6px 16px", border: "none", borderRadius: "6px", fontSize: "0.8rem", fontWeight: "600", cursor: "pointer",
-                background: statusFilter === s ? "#fff" : "transparent",
-                color: statusFilter === s ? "var(--primary)" : "#64748b",
-                boxShadow: statusFilter === s ? "0 2px 4px rgba(0,0,0,0.05)" : "none"
-              }}
-            >
-              {s.charAt(0).toUpperCase() + s.slice(1)}
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <div style={{ display: "flex", background: "#f1f5f9", padding: "4px", borderRadius: "8px", gap: "4px" }}>
+            {["all", "active", "inactive"].map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                style={{
+                  padding: "6px 16px", border: "none", borderRadius: "6px", fontSize: "0.8rem", fontWeight: "600", cursor: "pointer",
+                  background: statusFilter === s ? "#fff" : "transparent",
+                  color: statusFilter === s ? "var(--primary)" : "#64748b",
+                  boxShadow: statusFilter === s ? "0 2px 4px rgba(0,0,0,0.05)" : "none"
+                }}
+              >
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {canEdit && (
+            <>
+              <div
+                className="custom-input"
+                disabled={loading}
+                style={{
+                  margin: 0,
+                  backgroundColor: "var(--primary-light)",
+                  borderLeft: "4px solid var(--primary)",
+                  boxShadow: "none",
+                  border: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  height: "38px"
+                }}
+              >
+                <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--primary)", whiteSpace: "nowrap" }}>
+                  {suppliers.length} Total
+                </span>
+              </div>
+              <button className="btn-primary" onClick={openAdd} style={{ padding: "8px 20px", height: "38px" }}>
+                <UserPlus size={16} /> Add Supplier
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -479,7 +478,7 @@ function Suppliers() {
                     <div className="form-group">
                       <label>Contact Person *</label>
                       <div style={{ position: "relative" }}>
-                        <User size={14} style={{ position: "absolute", left: "12px", top: "11px", color: "#94a3b8" }} />
+                        <User size={14} style={{ position: "absolute", left: "12px", top: "14px", color: "#94a3b8" }} />
                         <input {...inp("contact_person")} style={{ paddingLeft: "35px" }} placeholder="Manager Name" />
                       </div>
                       {errSpan("contact_person")}
@@ -487,7 +486,7 @@ function Suppliers() {
                     <div className="form-group">
                       <label>Email Address *</label>
                       <div style={{ position: "relative" }}>
-                        <Mail size={14} style={{ position: "absolute", left: "12px", top: "11px", color: "#94a3b8" }} />
+                        <Mail size={14} style={{ position: "absolute", left: "12px", top: "14px", color: "#94a3b8" }} />
                         <input {...inp("email")} type="email" style={{ paddingLeft: "35px" }} placeholder="vendor@email.com" />
                       </div>
                       {errSpan("email")}
@@ -495,7 +494,7 @@ function Suppliers() {
                     <div className="form-group">
                       <label>Mobile Number *</label>
                       <div style={{ position: "relative" }}>
-                        <Phone size={14} style={{ position: "absolute", left: "12px", top: "11px", color: "#94a3b8" }} />
+                        <Phone size={14} style={{ position: "absolute", left: "12px", top: "14px", color: "#94a3b8" }} />
                         <input {...inp("mobile")} type="tel" style={{ paddingLeft: "35px" }} placeholder="10 digits" maxLength={10} />
                       </div>
                       {errSpan("mobile")}
@@ -542,7 +541,7 @@ function Suppliers() {
                     </div>
                     <div className="form-group">
                       <label>State *</label>
-                      <select {...inp("state")} style={{ height: "36px", width: "100%", borderRadius: "4px", border: "1px solid var(--border)", background: "#fff" }}>
+                      <select {...inp("state")}>
                         <option value="">Select State</option>
                         {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
@@ -599,20 +598,47 @@ function Suppliers() {
                         <label>Additional Notes</label>
                         <input {...inp("notes")} placeholder="Special instructions..." />
                       </div>
-                      <div className="form-group" style={{ display: "flex", alignItems: "center", gap: "12px", background: "#f8fafc", padding: "8px 12px", borderRadius: "8px", border: "1px solid #e2e8f0", height: "36px", marginTop: "24px" }}>
-                        <div
-                          onClick={() => setF("is_active", !form.is_active)}
-                          style={{
-                            width: "36px", height: "18px", background: form.is_active ? "var(--success)" : "#cbd5e1", borderRadius: "10px",
-                            position: "relative", cursor: "pointer", transition: "0.3s"
-                          }}
-                        >
-                          <div style={{
-                            width: "14px", height: "14px", background: "#fff", borderRadius: "50%", position: "absolute",
-                            top: "2px", left: form.is_active ? "20px" : "2px", transition: "0.3s"
-                          }} />
+                      <div className="form-group">
+                        <label>Supplier Status</label>
+                        <div style={{
+                          flexDirection: "row",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          background: form.is_active ? "var(--primary-light)" : "#f8fafc",
+                          padding: "0 16px",
+                          borderRadius: "10px",
+                          border: `1px solid ${form.is_active ? "var(--primary)" : "#e2e8f0"}`,
+                          height: "42px",
+                          transition: "0.3s all ease"
+                        }}>
+                          <span style={{ fontWeight: "700", fontSize: "0.85rem", color: form.is_active ? "var(--primary)" : "#475569" }}>
+                            {form.is_active ? "Active" : "Inactive"}
+                          </span>
+                          <div
+                            onClick={() => setF("is_active", !form.is_active)}
+                            style={{
+                              width: "38px",
+                              height: "20px",
+                              background: form.is_active ? "var(--primary)" : "#cbd5e1",
+                              borderRadius: "12px",
+                              position: "relative",
+                              cursor: "pointer",
+                              transition: "0.3s"
+                            }}
+                          >
+                            <div style={{
+                              width: "14px",
+                              height: "14px",
+                              background: "#fff",
+                              borderRadius: "50%",
+                              position: "absolute",
+                              top: "3px",
+                              left: form.is_active ? "21px" : "3px",
+                              transition: "0.3s"
+                            }} />
+                          </div>
                         </div>
-                        <label style={{ margin: 0, fontWeight: "700", cursor: "pointer", fontSize: "0.8rem", color: "#475569" }}>Active</label>
                       </div>
                     </div>
                   </fieldset>
@@ -694,20 +720,6 @@ function Suppliers() {
           font-size: 0.85rem;
           font-weight: 600;
           color: #475569;
-        }
-        .custom-input, select.custom-input, textarea.custom-input {
-          width: 100% !important;
-          height: 42px !important;
-          padding: 0 12px !important;
-          border: 1px solid #cbd5e1 !important;
-          border-radius: 8px !important;
-          font-size: 0.9rem !important;
-          box-sizing: border-box !important;
-          background-color: #fff;
-        }
-        textarea.custom-input {
-          padding: 10px 12px !important;
-          resize: none !important;
         }
         .modal-overlay {
           position: fixed;

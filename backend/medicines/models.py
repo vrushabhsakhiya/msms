@@ -28,11 +28,11 @@ class Medicine(models.Model):
 
     # ── Multi-Tenant Partitioning ──────────────────────────────────────────
     shop = models.ForeignKey(
-        'accounts.Shop', 
+        'accounts.Shop',
         on_delete=models.CASCADE,
         related_name='medicines',
-        null=True
-        # Security: shop is now mandatory to prevent orphaned products
+        null=True,  # null=True kept for migration safety; enforced via constraint
+        blank=False
     )
 
     # ── Basic Info ─────────────────────────────────────────────────────────
@@ -77,7 +77,33 @@ class Medicine(models.Model):
 
     class Meta:
         ordering = ['medicine_name']
-        unique_together = ('shop', 'medicine_code') # Security: multi-tenant code isolation
+        # Security: multi-tenant code isolation — no two same codes in a shop
+        unique_together = [('shop', 'medicine_code')]
+        constraints = [
+            # 🛡️ Prevent negative stock at the database level
+            models.CheckConstraint(
+                check=models.Q(stock_quantity__gte=0),
+                name='medicine_stock_quantity_non_negative'
+            ),
+            # 🛡️ Prevent negative prices
+            models.CheckConstraint(
+                check=models.Q(purchase_price__gte=0),
+                name='medicine_purchase_price_non_negative'
+            ),
+            models.CheckConstraint(
+                check=models.Q(mrp__gte=0),
+                name='medicine_mrp_non_negative'
+            ),
+            models.CheckConstraint(
+                check=models.Q(selling_price__gte=0),
+                name='medicine_selling_price_non_negative'
+            ),
+            # 🛡️ Prevent selling price > MRP (illegal in India)
+            models.CheckConstraint(
+                check=models.Q(selling_price__lte=models.F('mrp')),
+                name='medicine_selling_not_above_mrp'
+            ),
+        ]
 
     def __str__(self):
         return f"{self.medicine_name} ({self.medicine_code})"

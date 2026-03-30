@@ -127,6 +127,7 @@ class ResetOTP(models.Model):
     otp = models.CharField(max_length=6)
     created_at = models.DateTimeField(auto_now_add=True)
     is_used = models.BooleanField(default=False)
+    failed_attempts = models.IntegerField(default=0)
 
     def is_valid(self):
         from django.utils import timezone

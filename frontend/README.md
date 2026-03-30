@@ -1,3 +1,8 @@
+# Deploying to Vercel
+
+- Set the Vercel Project Root Directory to `msms/frontend`.
+- Configure `REACT_APP_API_URL` (see `.env.example`).
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).

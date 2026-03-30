@@ -20,6 +20,7 @@ import {
   Menu,
   ChevronLeft,
   ChevronRight,
+  History,
 } from "lucide-react";
 
 /**
@@ -29,6 +30,7 @@ function Sidebar({ collapsed, setCollapsed }) {
   const location = useLocation();
   const navigate = useNavigate();
   const role = (localStorage.getItem("role") || "staff").toLowerCase();
+  const permissions = JSON.parse(localStorage.getItem("permissions") || "{}");
   const shopName = localStorage.getItem("shop_name") || "Pharmly";
   const [alertCount, setAlertCount] = useState(0);
   const [branding, setBranding] = useState({ product_name: "Pharmly", logo: null });
@@ -60,7 +62,7 @@ function Sidebar({ collapsed, setCollapsed }) {
           name: "Dashboard",
           path: "/dashboard",
           icon: LayoutDashboard,
-          roles: ["admin", "staff", "pharmacist"],
+          module: null, // Always visible
         },
       ],
     },
@@ -71,13 +73,13 @@ function Sidebar({ collapsed, setCollapsed }) {
           name: "Medicines",
           path: "/medicines",
           icon: Pill,
-          roles: ["admin", "pharmacist", "staff"],
+          module: "medicine",
         },
         {
           name: "Inventory Dashboard",
           path: "/inventory",
           icon: PackageSearch,
-          roles: ["admin", "pharmacist"],
+          module: "medicine",
           badge: alertCount > 0 ? alertCount : null,
         },
       ],
@@ -89,13 +91,13 @@ function Sidebar({ collapsed, setCollapsed }) {
           name: "Purchases",
           path: "/purchase",
           icon: ShoppingCart,
-          roles: ["admin"],
+          module: "purchase",
         },
         {
           name: "Suppliers",
           path: "/suppliers",
           icon: Truck,
-          roles: ["admin"],
+          module: "purchase",
         },
       ],
     },
@@ -106,19 +108,19 @@ function Sidebar({ collapsed, setCollapsed }) {
           name: "Billing",
           path: "/billing",
           icon: FileText,
-          roles: ["admin", "staff", "pharmacist"],
+          module: "sales",
         },
         {
           name: "Payments",
           path: "/payments",
           icon: Receipt,
-          roles: ["admin", "staff", "pharmacist"],
+          module: "sales",
         },
         {
           name: "Customers",
           path: "/customers",
           icon: Users,
-          roles: ["admin", "staff"],
+          module: "sales",
         },
       ],
     },
@@ -129,19 +131,19 @@ function Sidebar({ collapsed, setCollapsed }) {
           name: "Reporting Center",
           path: "/reports",
           icon: BarChart3,
-          roles: ["admin"],
+          module: "reports",
         },
         {
           name: "Sales Analysis",
           path: "/sales-report",
           icon: BarChart3,
-          roles: ["admin"],
+          module: "reports",
         },
         {
           name: "GST Filings",
           path: "/gstr-report",
           icon: PackageSearch,
-          roles: ["admin"],
+          module: "reports",
         },
       ],
     },
@@ -152,7 +154,13 @@ function Sidebar({ collapsed, setCollapsed }) {
           name: "Manage Staff",
           path: "/user-management",
           icon: UserCog,
-          roles: ["admin"],
+          module: "admin_only",
+        },
+        {
+          name: "System Audit Logs",
+          path: "/audit-logs",
+          icon: History,
+          module: "admin_only",
         },
       ],
     },
@@ -184,7 +192,12 @@ function Sidebar({ collapsed, setCollapsed }) {
       {/* ── Navigation ── */}
       <nav style={{ flex: 1, overflowY: "auto", padding: collapsed ? "0 0.5rem" : "0 0.5rem 2rem 0.5rem" }}>
         {menuItems.map((section) => {
-          const visible = section.items.filter(i => i.roles.includes(role));
+          const visible = section.items.filter(i => {
+            if (role === 'admin') return true;
+            if (i.module === 'admin_only') return false;
+            if (!i.module) return true; // Dashboard etc
+            return permissions[i.module]?.read === true;
+          });
           if (visible.length === 0) return null;
           return (
             <div key={section.group || "main"} style={{ marginBottom: collapsed ? "0.5rem" : "1.25rem" }}>

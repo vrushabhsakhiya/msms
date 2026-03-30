@@ -49,11 +49,11 @@ class PurchaseSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def create(self, validated_data):
         items_data = validated_data.pop('items')
-        request = self.context.get('request')
-        shop = request.user.shop
+        shop = validated_data.pop('shop', None)
+        created_by = validated_data.pop('created_by', None)
         
         # 1. Preliminary Create to get ID
-        purchase = Purchase.objects.create(shop=shop, **validated_data)
+        purchase = Purchase.objects.create(shop=shop, created_by=created_by, **validated_data)
         
         # 2. Generate and Set Code (Ensure it exists for references)
         purchase.purchase_code = f"PO-{purchase.id:06d}"
@@ -110,7 +110,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
                 in_quantity=total_qty,
                 balance_quantity=medicine.stock_quantity,
                 reference_id=purchase.purchase_code,
-                created_by=validated_data.get('created_by')
+                created_by=created_by
             )
 
         return purchase

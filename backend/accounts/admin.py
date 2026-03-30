@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.models import Group
 from django.contrib import messages
 from django.utils.html import format_html
-from .models import User, Shop, UserRole, SystemSettings
+from .models import User, Shop, UserRole, SystemSettings, AuditLog, LoginOTP
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 
 # ── Customize Admin Site Branding ──────────────────────────────────────────
@@ -148,4 +148,17 @@ class UserAdmin(admin.ModelAdmin):
         if request.user.is_superuser:
             return qs.filter(role='admin')
         return qs
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ('action_type', 'module_name', 'user', 'created_at', 'ip_address')
+    list_filter = ('action_type', 'module_name', 'created_at')
+    search_fields = ('user__username', 'module_name', 'action_type')
+    readonly_fields = ('created_at', 'new_value', 'old_value')
+    ordering = ('-created_at',)
 
+@admin.register(LoginOTP)
+class LoginOTPAdmin(admin.ModelAdmin):
+    list_display = ('user', 'otp', 'created_at', 'is_used')
+    list_filter = ('is_used', 'created_at')
+    search_fields = ('user__username', 'user__email')
+    ordering = ('-created_at',)

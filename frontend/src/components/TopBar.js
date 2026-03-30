@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import API from "../services/api";
 
-function TopBar({ title, subtitle }) {
+function TopBar({ title, subtitle, actions, icon }) {
   const navigate = useNavigate();
   const location = useLocation();
   const userName = localStorage.getItem("user") || "AdminUser";
@@ -70,59 +70,34 @@ function TopBar({ title, subtitle }) {
   return (
     <div className="top-bar">
       {/* Left Side: Title & Subtitle */}
-      <div>
-        <h2
-          style={{
-            margin: 0,
-            fontSize: "1.25rem",
-            fontWeight: "800",
-            color: "white",
-          }}
-        >
-          {getPageTitle()}
-        </h2>
-        <p
-          style={{
-            margin: "0.1rem 0 0 0",
-            color: "rgba(255,255,255,0.5)",
-            fontSize: "0.8rem",
-          }}
-        >
-          {subtitle || "Manage your pharmacy efficiently"}
-        </p>
+      <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        {icon && <div style={{ color: "white", opacity: 0.8 }}>{icon}</div>}
+        <div>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: "1.25rem",
+              fontWeight: "800",
+              color: "white",
+            }}
+          >
+            {getPageTitle()}
+          </h2>
+          <p
+            style={{
+              margin: "0.1rem 0 0 0",
+              color: "rgba(255,255,255,0.5)",
+              fontSize: "0.8rem",
+            }}
+          >
+            {subtitle || "Manage your pharmacy efficiently"}
+          </p>
+        </div>
       </div>
 
-      {/* Right Side: Search, Bell, Profile */}
-      <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
-        <div style={{ position: "relative" }}>
-          <Search
-            size={16}
-            style={{
-              position: "absolute",
-              left: "1rem",
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: "rgba(255,255,255,0.4)",
-            }}
-          />
-          <input
-            type="text"
-            placeholder="Quick Search..."
-            style={{
-              padding: "0.6rem 1rem 0.6rem 2.5rem",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              outline: "none",
-              fontSize: "0.85rem",
-              width: "240px",
-              backgroundColor: "rgba(255,255,255,0.05)",
-              color: "white",
-              transition: "0.2s",
-            }}
-            onFocus={(e) => (e.target.style.backgroundColor = "rgba(255,255,255,0.1)")}
-            onBlur={(e) => (e.target.style.backgroundColor = "rgba(255,255,255,0.05)")}
-          />
-        </div>
+      {/* Right Side: Actions, Notifications, Profile */}
+      <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        {actions && <div style={{ display: "flex", gap: "0.5rem" }}>{actions}</div>}
 
         <div style={{ position: "relative" }} ref={notificationRef}>
           <button

@@ -84,14 +84,17 @@ TEMPLATES = [
 WSGI_APPLICATION = 'msms.wsgi.application'
 
 
-# Database
+# Database (Hardened: Credentials now pulled from Env)
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME':     os.environ.get('DB_NAME', 'msms_db'),
+        'USER':     os.environ.get('DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+        'HOST':     os.environ.get('DB_HOST', 'localhost'),
+        'PORT':     os.environ.get('DB_PORT', '5432'),
     }
 }
-
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -140,26 +143,11 @@ CSRF_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
 
-# ── Password Validation ──
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-        'OPTIONS': {
-            'min_length': 8,
-        }
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
-]
+# SECURE_SSL_REDIRECT = not DEBUG (Disabled for local dev unless https is ready)
 
 SECURE_SSL_REDIRECT = not DEBUG
+# Respect reverse proxy headers (Vercel / Render / Nginx) for correct HTTPS detection
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 CSRF_TRUSTED_ORIGINS = [
     FRONTEND_URL,
     "http://127.0.0.1:3000"
@@ -180,9 +168,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
-    # Scalability: Force pagination on all list endpoints (DoS prevention)
-    'DEFAULT_PAGINATION_CLASS': None,
-    # 'PAGE_SIZE': 50,
+    # Security: Force pagination globally to prevent DoS attacks on list endpoints
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 50,
     
     # Security: Prevent brute-force and scraping
     'DEFAULT_THROTTLE_CLASSES': [
@@ -191,8 +179,8 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.ScopedRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/day',
-        'user': '5000/day',
+        'anon': '1000/day',
+        'user': '10000/day',
         'auth_attempt': '10/minute',  # Targeted at login/register
     },
     
@@ -212,12 +200,16 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
-# ── Email SMTP ──
-EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
+# ── Email SMTP ── (Dynamic Backend based on DEBUG)
+if DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
 EMAIL_HOST          = 'smtp.gmail.com'
 EMAIL_PORT          = 587
 EMAIL_USE_TLS       = True
-EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER')     # Strict load, no fallbacks
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD') # Strict load, no fallbacks
+EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL  = f"MSMS Medical <{EMAIL_HOST_USER}>"
 

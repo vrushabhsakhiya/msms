@@ -11,7 +11,8 @@ import {
   Tag,
   Info,
   Receipt,
-  Filter
+  Filter,
+  FileText
 } from "lucide-react";
 
 const CATEGORIES = [
@@ -29,6 +30,11 @@ function Purchase() {
   const [medicines, setMedicines] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const role = (localStorage.getItem("role") || "staff").toLowerCase();
+  const permissions = JSON.parse(localStorage.getItem("permissions") || "{}");
+  const canCreatePurchase = role === "admin" || permissions?.purchase?.create;
+  const canDeletePurchase = role === "admin" || permissions?.purchase?.delete;
+
   const [form, setForm] = useState({
     purchase_code: `PO-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 100)}`,
     supplier: "",
@@ -41,6 +47,7 @@ function Purchase() {
     net_amount: 0,
     balance_amount: 0,
     payment_status: "pending",
+    payment_mode: "Cash",
     items: [],
   });
 
@@ -61,7 +68,19 @@ function Purchase() {
   useEffect(() => {
     fetchSuppliers();
     fetchMedicines();
+    fetchNextCodes();
   }, []);
+
+  const fetchNextCodes = async () => {
+    try {
+        const res = await API.get("purchases/next-codes/");
+        setForm(prev => ({
+            ...prev,
+            purchase_code: res.data.purchase_code,
+            invoice_number: res.data.invoice_number
+        }));
+    } catch (e) { console.error("Error fetching next codes", e); }
+  };
 
   const fetchSuppliers = async () => {
     try {
@@ -175,14 +194,57 @@ function Purchase() {
         net_amount: 0,
         balance_amount: 0,
         payment_status: "pending",
+        payment_mode: "Cash",
         items: [],
       });
+      fetchNextCodes();
     } catch (err) {
       const errMsg = err.response?.data ? JSON.stringify(err.response.data) : "Procurement entry failed. Check all fields.";
       alert("Error: " + errMsg);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleImportCSV = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      setLoading(true);
+      const res = await API.post("purchases/import-csv/", formData);
+      alert(res.data.message || "Import Successful!");
+      fetchMedicines(); // Refresh stock counts
+    } catch (err) {
+      alert(err.response?.data?.error || "Error importing CSV");
+    } finally {
+      setLoading(false);
+      e.target.value = "";
+    }
+  };
+
+  const exportToCSV = () => {
+    if (form.items.length === 0) return alert("Add items to stage before exporting template/order.");
+    
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "invoice_number,invoice_date,supplier_name,medicine_name,batch_number,expiry_date,quantity,free_quantity,purchase_rate,mrp,gst_percentage\n";
+    
+    form.items.forEach(it => {
+        const med = medicines.find(m => m.id == it.medicine);
+        const supplier = suppliers.find(s => s.id == form.supplier);
+        csvContent += `${form.invoice_number},${form.invoice_date},${supplier?.supplier_name || 'Generic'},${med?.medicine_name},${it.batch_number},${it.expiry_date},${it.quantity},${it.free_quantity},${it.purchase_rate},${it.mrp},${it.gst_percentage}\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `purchase_order_${form.invoice_number}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -216,21 +278,41 @@ function Purchase() {
             Inward mapping of supplier stock to store inventory
           </p>
         </div>
-        <div
-          style={{
-            padding: "8px 16px",
-            borderRadius: "10px",
-            backgroundColor: "white",
-            border: "1px solid var(--border)",
-            fontWeight: "700",
-          }}
-        >
-          <Tag
-            size={16}
-            className="text-primary"
-            style={{ marginRight: "8px" }}
-          />
-          {form.purchase_code}
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          {canCreatePurchase && (
+            <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                    type="file"
+                    id="csv-import"
+                    accept=".csv"
+                    style={{ display: "none" }}
+                    onChange={handleImportCSV}
+                />
+                <button 
+                    className="btn-secondary" 
+                    onClick={exportToCSV}
+                    style={{ padding: '8px 16px', borderRadius: '10px', fontSize: '0.85rem' }}
+                >
+                    <FileText size={16} /> Export Staged
+                </button>
+            </div>
+          )}
+          <div
+            style={{
+              padding: "8px 16px",
+              borderRadius: "10px",
+              backgroundColor: "white",
+              border: "1px solid var(--border)",
+              fontWeight: "700",
+            }}
+          >
+            <Tag
+              size={16}
+              className="text-primary"
+              style={{ marginRight: "8px" }}
+            />
+            {form.purchase_code}
+          </div>
         </div>
       </div>
 
@@ -274,10 +356,10 @@ function Purchase() {
                 <input
                   type="text"
                   className="custom-input"
-                  style={{ backgroundColor: "#f1f5f9", cursor: "not-allowed" }}
+                  style={{ backgroundColor: '#f1f5f9', cursor: 'not-allowed' }}
+                  readOnly
                   placeholder="e.g. INV-9901"
                   value={form.invoice_number}
-                  readOnly
                 />
               </div>
               <div className="form-group">
@@ -293,6 +375,7 @@ function Purchase() {
                   }
                 />
               </div>
+
             </div>
           </div>
 
@@ -481,20 +564,29 @@ function Purchase() {
             </div>
           </div>
 
-          <button
-            className="btn-primary"
-            style={{ padding: "1.2rem", fontSize: "1.2rem" }}
-            onClick={createPurchase}
-            disabled={form.items.length === 0 || loading}
-          >
-            {loading
-              ? "Synching Inventory..."
-              : "CONFIRM RECEIPT & UPDATE LEDGER"}
-          </button>
+          {canCreatePurchase ? (
+            <button
+                className="btn-primary"
+                style={{ padding: "1.2rem", fontSize: "1.2rem" }}
+                onClick={createPurchase}
+                disabled={form.items.length === 0 || loading}
+            >
+                {loading
+                ? "Synching Inventory..."
+                : "CONFIRM RECEIPT & UPDATE LEDGER"}
+            </button>
+          ) : (
+            <div className="card" style={{ backgroundColor: '#fff7ed', border: '1px solid #ffedd5', textAlign: 'center', padding: '1.2rem' }}>
+                <p style={{ margin: 0, color: '#9a3412', fontWeight: '700' }}>
+                    <Info size={18} style={{ verticalAlign: 'middle', marginRight: '8px' }} />
+                    Read-Only: You do not have permission to commit new purchases.
+                </p>
+            </div>
+          )}
         </div>
 
         {/* Item staging panel */}
-        <div className="card" style={{ position: "sticky", top: "2rem" }}>
+        <div className="card" style={{ position: "sticky", top: "2rem", opacity: canCreatePurchase ? 1 : 0.6, pointerEvents: canCreatePurchase ? 'auto' : 'none' }}>
           <h3
             style={{
               margin: "0 0 1.5rem 0",
@@ -503,7 +595,7 @@ function Purchase() {
               gap: "10px",
             }}
           >
-            <Plus size={20} className="text-primary" /> Stage Medication
+            <Plus size={20} className="text-primary" /> {canCreatePurchase ? "Stage Medication" : "Procurement Restricted"}
           </h3>
           <form onSubmit={addItem}>
             <div className="form-group" style={{ position: "relative", marginBottom: "1rem" }}>

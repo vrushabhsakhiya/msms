@@ -1,15 +1,184 @@
-from rest_framework.decorators import api_view, permission_classes
+import csv
+import io
+from datetime import date, timedelta
+from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .serializers import PurchaseSerializer
 from .models import Purchase, PurchaseItem
+from suppliers.models import Supplier
+from medicines.models import Medicine
+from inventory.models import StockBatch
 from accounts.permissions import HasPurchaseAccess
-from django.db.models import Sum, F
+from django.db.models import Sum, F, Max
+from decimal import Decimal
+from django.db import transaction
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, HasPurchaseAccess])
+def get_next_codes(request):
+    """Suggests sequential PO and Invoice numbers starting from 001."""
+    last_purchase = Purchase.objects.filter(shop=request.user.shop).order_by('-id').first()
+    next_id = (last_purchase.id + 1) if last_purchase else 1
+    
+    return Response({
+        "purchase_code": f"PO-{next_id:06d}",
+        "invoice_number": f"INV-{next_id:06d}"
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, HasPurchaseAccess])
+@parser_classes([MultiPartParser])
+def import_purchases_csv(request):
+    """
+    Groups rows by Invoice Number + Supplier to create complex Purchase records from CSV.
+    Expected columns: invoice_number, invoice_date, supplier_name, medicine_name, batch_number, expiry_date, quantity, purchase_rate, mrp, gst_percentage
+    """
+    file = request.FILES.get('file')
+    if not file:
+        return Response({"error": "No file provided"}, status=400)
+
+    try:
+        decoded_file = file.read().decode('utf-8').splitlines()
+        reader = csv.DictReader(decoded_file)
+        
+        # Normalize headers
+        header_map = {}
+        if reader.fieldnames:
+            for field in reader.fieldnames:
+                clean_field = field.strip().lower().replace(' ', '_').replace('_', '')
+                header_map[clean_field] = field
+
+        def get_val(row, *aliases):
+            for alias in aliases:
+                clean_alias = alias.lower().replace(' ', '').replace('_', '')
+                if clean_alias in header_map:
+                    return row.get(header_map[clean_alias])
+            return None
+
+        purchases_to_process = {} # Grouped by (invoice_number, supplier_name)
+
+        with transaction.atomic():
+            for idx, row in enumerate(reader):
+                inv_no = get_val(row, 'invoice_number', 'inv_no', 'invoice')
+                sup_name = get_val(row, 'supplier_name', 'supplier', 'vendor')
+                
+                if not inv_no or not sup_name:
+                    continue
+                
+                key = (inv_no, sup_name)
+
+                if key not in purchases_to_process:
+                    # Get or Create Supplier
+                    supplier, _ = Supplier.objects.get_or_create(
+                        shop=request.user.shop, 
+                        supplier_name__iexact=sup_name,
+                        defaults={'supplier_name': sup_name, 'mobile': get_val(row, 'mobile', 'phone') or ''}
+                    )
+                    
+                    p_date_str = get_val(row, 'invoice_date', 'date')
+                    p_date = date.today().isoformat()
+                    # Simple date format check
+                    if p_date_str:
+                        if '/' in p_date_str: # Convert DD/MM/YYYY to YYYY-MM-DD
+                            try:
+                                parts = p_date_str.split('/')
+                                if len(parts[0]) == 4: p_date = "-".join(parts)
+                                else: p_date = f"{parts[2]}-{parts[1]}-{parts[0]}"
+                            except: pass
+                        else: p_date = p_date_str
+
+                    purchases_to_process[key] = {
+                        "shop": request.user.shop.id,
+                        "supplier": supplier.id,
+                        "invoice_number": inv_no,
+                        "invoice_date": p_date,
+                        "payment_status": "pending",
+                        "items": []
+                    }
+
+                # Get/Create Medicine
+                med_name = get_val(row, 'medicine_name', 'item_name', 'medicine', 'item')
+                if not med_name: continue
+
+                try:
+                    medicine = Medicine.objects.get(shop=request.user.shop, medicine_name__iexact=med_name)
+                except Medicine.DoesNotExist:
+                    medicine = Medicine.objects.create(
+                        shop=request.user.shop,
+                        medicine_name=med_name,
+                        category=get_val(row, 'category', 'type') or 'Tablet',
+                        stock_quantity=0,
+                        reorder_level=10
+                    )
+
+                p_rate = float(get_val(row, 'purchase_rate', 'rate', 'cost') or 0)
+                qty = int(get_val(row, 'quantity', 'qty') or 0)
+                gst_per = float(get_val(row, 'gst_percentage', 'gst', 'tax') or 12)
+                
+                base_amt = Decimal(str(p_rate)) * qty
+                gst_amt = base_amt * (Decimal(str(gst_per)) / 100)
+
+                purchases_to_process[key]["items"].append({
+                    "medicine": medicine.id,
+                    "quantity": qty,
+                    "free_quantity": int(get_val(row, 'free_quantity', 'free') or 0),
+                    "purchase_rate": p_rate,
+                    "mrp": float(get_val(row, 'mrp') or p_rate * 1.2),
+                    "batch_number": get_val(row, 'batch_number', 'batch_no', 'batch') or f"CSV-{date.today().strftime('%y%m%d')}-{idx}",
+                    "expiry_date": get_val(row, 'expiry_date', 'expiry', 'exp') or (date.today() + timedelta(days=365)).isoformat(),
+                    "discount_percentage": 0,
+                    "discount_amount": 0,
+                    "gst_percentage": gst_per,
+                    "gst_amount": float(gst_amt),
+                    "amount": float(base_amt), 
+                })
+
+            if not purchases_to_process:
+                return Response({"error": "No valid purchase records found. Check if headers match: invoice_number, supplier_name, medicine_name, quantity, purchase_rate"}, status=400)
+
+            # Save grouped purchases
+            created_count = 0
+            for p_data in purchases_to_process.values():
+                items = p_data["items"]
+                total_qty = sum(it["quantity"] + it["free_quantity"] for it in items)
+                gross = sum(Decimal(str(it["purchase_rate"])) * it["quantity"] for it in items)
+                gst = sum(Decimal(str(it["gst_amount"])) for it in items)
+                net = gross + gst
+                
+                p_data.update({
+                    "total_items": len(items),
+                    "total_quantity": total_qty,
+                    "gross_amount": float(gross),
+                    "gst_amount": float(gst),
+                    "net_amount": float(net),
+                    "balance_amount": float(net),
+                    "paid_amount": 0,
+                    "payment_mode": "Cash"
+                })
+
+                serializer = PurchaseSerializer(data=p_data, context={'request': request})
+                if serializer.is_valid():
+                    purchase = serializer.save(created_by=request.user, shop=request.user.shop)
+                    purchase.purchase_code = f"PO-CSV-{purchase.id:04d}"
+                    purchase.save()
+                    created_count += 1
+                else:
+                    return Response({"error": f"Invoice {p_data.get('invoice_number')} error: {serializer.errors}"}, status=400)
+
+            return Response({"message": f"Successfully imported {created_count} purchases.", "count": created_count}, status=201)
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(error_details)
+        return Response({"error": f"Import Failed: {str(e)}"}, status=400)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, HasPurchaseAccess])
 def create_purchase(request):
-    serializer = PurchaseSerializer(data=request.data)
+    serializer = PurchaseSerializer(data=request.data, context={'request': request})
     if serializer.is_valid():
         purchase = serializer.save(created_by=request.user, shop=request.user.shop)
         
@@ -23,9 +192,19 @@ def create_purchase(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, HasPurchaseAccess])
 def get_purchases(request):
-    purchases = Purchase.objects.filter(shop=request.user.shop).order_by('-created_at')
-    serializer = PurchaseSerializer(purchases, many=True)
-    return Response(serializer.data, status=200)
+    """
+    List purchases for the authenticated shop with server-side pagination.
+    """
+    from rest_framework.pagination import PageNumberPagination
+    
+    purchases = Purchase.objects.filter(shop=request.user.shop).select_related('supplier', 'created_by').order_by('-created_at')
+    
+    paginator = PageNumberPagination()
+    paginator.page_size = request.query_params.get('page_size', 50)
+    
+    result_page = paginator.paginate_queryset(purchases, request)
+    serializer = PurchaseSerializer(result_page, many=True, context={'request': request})
+    return paginator.get_paginated_response(serializer.data)
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated, HasPurchaseAccess])
@@ -85,6 +264,42 @@ def delete_purchase(request, pk):
     except Exception as e:
         logging.getLogger(__name__).error(f"Purchase Delete Error: {e}")
         return Response({"error": "Failed to delete purchase safely."}, status=500)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated, HasPurchaseAccess])
+def update_status(request, pk):
+    """Atomic update of payment status and order status."""
+    try:
+        purchase = Purchase.objects.get(pk=pk, shop=request.user.shop)
+        
+        # 1. Handle Payment Status Update
+        if 'payment_status' in request.data:
+            new_status = request.data['payment_status'].lower()
+            if new_status == 'paid':
+                purchase.payment_status = 'paid'
+                purchase.paid_amount = purchase.net_amount
+                purchase.balance_amount = 0
+                purchase.payment_mode = request.data.get('payment_mode', purchase.payment_mode or 'Cash')
+            elif new_status == 'pending':
+                purchase.payment_status = 'pending'
+                purchase.paid_amount = 0
+                purchase.balance_amount = purchase.net_amount
+            elif new_status == 'partial':
+                purchase.payment_status = 'partial'
+                purchase.paid_amount = Decimal(request.data.get('paid_amount', 0))
+                purchase.balance_amount = purchase.net_amount - purchase.paid_amount
+
+        # 2. Handle Order Status Update (e.g. Delivered vs Pending)
+        if 'order_status' in request.data:
+            purchase.order_status = request.data['order_status']
+            
+        purchase.save()
+        return Response({"message": "Purchase details updated successfully."}, status=200)
+    except Purchase.DoesNotExist:
+        return Response({"error": "Purchase not found."}, status=404)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
 
 
 @api_view(['GET'])

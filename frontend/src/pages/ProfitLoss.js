@@ -13,7 +13,6 @@ import {
 
 function ProfitLoss() {
     const [data, setData] = useState(null);
-    const [loading, setLoading] = useState(true);
     const [filters, setFilters] = useState({
         start_date: new Date(new Date().setDate(1)).toISOString().split('T')[0],
         end_date: new Date().toISOString().split('T')[0]
@@ -21,13 +20,10 @@ function ProfitLoss() {
 
     const fetchPL = async () => {
         try {
-            setLoading(true);
             const res = await API.get(`sales/profit-loss/?start_date=${filters.start_date}&end_date=${filters.end_date}`);
             setData(res.data);
         } catch (err) {
             console.error("Error fetching P&L", err);
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -35,9 +31,39 @@ function ProfitLoss() {
         fetchPL();
     }, [filters]);
 
+    const downloadCSV = () => {
+      if (!data) return;
+
+      let csv = "Profit & Loss Statement\n";
+      csv += `Period: ${filters.start_date} to ${filters.end_date}\n\n`;
+      
+      csv += "Category,Description,Amount (₹)\n";
+      csv += `REVENUE,Gross Sales,${data.revenue.gross_sales}\n`;
+      csv += `REVENUE,Sales Discounts,-${data.revenue.discounts}\n`;
+      csv += `REVENUE,GST Collected,-${data.revenue.taxes}\n`;
+      csv += `REVENUE,Net Operating Revenue,${data.revenue.net_revenue - data.revenue.taxes}\n\n`;
+      
+      csv += `EXPENSES,Cost of Goods Sold (COGS),${data.expenses.cogs}\n`;
+      csv += `EXPENSES,Other Operational Costs,${data.expenses.other}\n`;
+      csv += `EXPENSES,Total Direct Expenses,${data.expenses.cogs + data.expenses.other}\n\n`;
+      
+      csv += `SUMMARY,ESTIMATED GROSS PROFIT,${data.profit.gross_profit}\n`;
+      csv += `SUMMARY,Margin Percent,${data.profit.margin_percent}%\n`;
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Profit_Loss_Statement_${filters.start_date}_to_${filters.end_date}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    };
+
     return (
         <Layout>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2.5rem" }}>
+            <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2.5rem" }}>
                 <div>
                     <h2 style={{ margin: 0, fontWeight: "800", fontSize: "2rem", display: "flex", alignItems: "center", gap: "10px" }}>
                         <Calculator size={32} className="text-secondary" /> Profit & Loss Statement
@@ -46,16 +72,16 @@ function ProfitLoss() {
                 </div>
                 <div style={{ display: "flex", gap: "10px" }}>
                     <button className="btn-secondary" onClick={() => window.print()}>
-                        <Printer size={18} /> Print
+                        <Printer size={18} /> Print PDF
                     </button>
-                    <button className="btn-primary" style={{ backgroundColor: "#065f46" }}>
-                        <Download size={18} /> Export PDF
+                    <button className="btn-primary" style={{ backgroundColor: "#065f46" }} onClick={downloadCSV}>
+                        <Download size={18} /> Export CSV
                     </button>
                 </div>
             </div>
 
             {/* Date Filter */}
-            <div className="card" style={{ marginBottom: "2rem", padding: "1.2rem", display: "flex", alignItems: "center", gap: "2rem" }}>
+            <div className="card no-print" style={{ marginBottom: "2rem", padding: "1.2rem", display: "flex", alignItems: "center", gap: "2rem" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                     <Calendar size={20} className="text-muted" />
                     <input type="date" className="custom-input" value={filters.start_date} onChange={(e) => setFilters({ ...filters, start_date: e.target.value })} />
@@ -65,7 +91,31 @@ function ProfitLoss() {
             </div>
 
             {data && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}>
+                <div className="print-area">
+                    <style>{`
+                        @media print {
+                            .no-print, .sidebar, .navbar, .layout-header, header, footer, .btn-primary, .btn-secondary {
+                                display: none !important;
+                            }
+                            .layout-content, .main-content, .print-area {
+                                margin: 0 !important;
+                                padding: 0 !important;
+                                width: 100% !important;
+                                overflow: visible !important;
+                            }
+                            .card {
+                                border: 1px solid #e2e8f0 !important;
+                                box-shadow: none !important;
+                                margin-bottom: 1.5rem !important;
+                                padding: 1.5rem !important;
+                                overflow: visible !important;
+                                height: auto !important;
+                                background: white !important;
+                            }
+                            body { background: white !important; }
+                        }
+                    `}</style>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}>
                     {/* Revenue & Direct Costs */}
                     <div style={{ display: "grid", gap: "1.5rem" }}>
                         <div className="card">
@@ -137,6 +187,7 @@ function ProfitLoss() {
                                 • Profit: Calculate as (Net Revenue - GST) - Purchase Cost.
                             </p>
                         </div>
+                    </div>
                     </div>
                 </div>
             )}

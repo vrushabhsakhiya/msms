@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 
-function Layout({ children, title, subtitle }) {
+function Layout({ children, title, subtitle, actions, icon }) {
   // Initialize from localStorage to persist state across page transitions
   const [isCollapsed, setIsCollapsed] = useState(() => {
     return localStorage.getItem("sidebar-collapsed") === "true";
@@ -18,7 +18,7 @@ function Layout({ children, title, subtitle }) {
     <div className={`App ${isCollapsed ? "sidebar-collapsed" : ""}`}>
       <Sidebar collapsed={isCollapsed} setCollapsed={toggleSidebar} />
       <main className="main-content">
-        <TopBar title={title} subtitle={subtitle} />
+        <TopBar title={title} subtitle={subtitle} actions={actions} icon={icon} />
         <div className="page-body">
           {children}
         </div>

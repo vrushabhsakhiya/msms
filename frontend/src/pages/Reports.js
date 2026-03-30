@@ -10,7 +10,8 @@ import {
     Users,
     PieChart,
     BadgePercent,
-    Calculator
+    Calculator,
+    History
 } from "lucide-react";
 
 function Reports() {
@@ -29,6 +30,7 @@ function Reports() {
             title: "Inventory & Compliance",
             reports: [
                 { name: "Stock Status Report", icon: <Boxes />, path: "/inventory", desc: "Current stock valuation and level audit" },
+                { name: "System Audit Logs", icon: <History />, path: "/audit-logs", desc: "Identify who made changes to records and when" },
                 { name: "GSTR-1 (Sales GST)", icon: <Receipt />, path: "/gstr-report", desc: "Generate government compliant sales tax reports" },
                 { name: "GSTR-2 (Purchase GST)", icon: <FileText />, path: "/gstr2-report", desc: "Track input tax credit on purchases" },
             ]
@@ -37,7 +39,7 @@ function Reports() {
             title: "Financial Ledgers",
             reports: [
                 { name: "Purchase History", icon: <ShoppingCart />, path: "/purchase-history", desc: "Complete log of supplier procurement" },
-                { name: "Customer Ledgers", icon: <Users />, path: "/customers", desc: "Pending balances and purchase history by patient" },
+                { name: "Customer Ledgers", icon: <Users />, path: "/customers", desc: "Purchase history and billing records by patient" },
                 { name: "Profit & Loss (P&L)", icon: <Calculator />, path: "/profit-loss", desc: "Estimate gross profit based on sales vs cost" },
             ]
         }

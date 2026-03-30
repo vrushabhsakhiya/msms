@@ -129,13 +129,13 @@ function Customers() {
         </div>
 
         {/* Filter Bar */}
-        <div className="card" style={{ padding: '1rem', marginBottom: '2rem' }}>
-          <div style={{ position: "relative" }}>
-            <Search style={{ position: "absolute", left: "15px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} size={20} />
+        <div className="card" style={{ padding: '0.75rem', marginBottom: '2rem' }}>
+          <div className="search-wrapper">
+            <Search className="search-icon" size={20} />
             <input
               className="custom-input"
               placeholder="Search by name, mobile, or customer code..."
-              style={{ paddingLeft: "50px", borderRadius: '12px' }}
+              style={{ paddingLeft: "42px" }}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -151,9 +151,7 @@ function Customers() {
                   <th style={thStyle}>#</th>
                   <th style={thStyle}>Customer Info</th>
                   <th style={thStyle}>Mobile</th>
-                  <th style={thStyle}>Location</th>
                   <th style={thStyle}>Total Purchase</th>
-                  <th style={thStyle}>Outstanding</th>
                   <th style={thStyle}>Bills</th>
                   <th style={{ ...thStyle, textAlign: "right" }}>Actions</th>
                 </tr>
@@ -161,11 +159,11 @@ function Customers() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="8" style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>Loading records...</td>
+                    <td colSpan="6" style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>Loading records...</td>
                   </tr>
                 ) : filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan="8" style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>No customers found.</td>
+                    <td colSpan="6" style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>No customers found.</td>
                   </tr>
                 ) : (
                   filteredCustomers.map((cust, idx) => (
@@ -176,11 +174,7 @@ function Customers() {
                         <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{cust.customer_code}</div>
                       </td>
                       <td style={tdStyle}>{cust.mobile}</td>
-                      <td style={tdStyle}>{cust.city || "N/A"}</td>
                       <td style={{ ...tdStyle, color: "#10b981", fontWeight: "700" }}>₹{parseFloat(cust.total_purchases || 0).toLocaleString()}</td>
-                      <td style={{ ...tdStyle, color: (cust.outstanding_balance || 0) > 0 ? "#ef4444" : "#64748b", fontWeight: "700" }}>
-                        ₹{parseFloat(cust.outstanding_balance || 0).toLocaleString()}
-                      </td>
                       <td style={tdStyle}>
                         <span style={{ backgroundColor: "#eff6ff", color: "#3b82f6", padding: "2px 8px", borderRadius: "6px", fontSize: "0.8rem", fontWeight: "600" }}>
                           {cust.total_bills || 0}
@@ -305,12 +299,6 @@ function Customers() {
                         <span style={{ color: '#64748b', fontWeight: '700', fontSize: '0.9rem', textTransform: 'uppercase' }}>Total Payment Recvd:</span>
                         <span style={{ fontSize: '1.35rem', fontWeight: '800', color: '#10b981' }}>
                           ₹{ledgerData.reduce((sum, sale) => sum + parseFloat(sale.amount_received || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px dashed #cbd5e1', paddingTop: '10px' }}>
-                        <span style={{ color: '#64748b', fontWeight: '700', fontSize: '0.9rem', textTransform: 'uppercase' }}>Outstanding Balance:</span>
-                        <span style={{ fontSize: '1.35rem', fontWeight: '800', color: parseFloat(ledgerCustomer.outstanding_balance || 0) > 0 ? '#ef4444' : '#10b981' }}>
-                          ₹{parseFloat(ledgerCustomer.outstanding_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
                     </div>

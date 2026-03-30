@@ -42,7 +42,7 @@ class SaleSerializer(serializers.ModelSerializer):
             'discount_amount', 'taxable_amount', 'gst_amount', 'cgst_amount',
             'sgst_amount', 'round_off', 'net_amount', 'payment_mode',
             'transaction_id', 'reference_number', 'amount_received',
-            'return_amount', 'status', 'items', 'created_by', 'created_at', 'updated_at'
+            'status', 'items', 'created_by', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'invoice_number', 'created_by', 'created_at', 'updated_at']
 

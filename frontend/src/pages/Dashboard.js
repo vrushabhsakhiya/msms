@@ -6,7 +6,7 @@ import {
   TrendingUp,
   FileText,
   DollarSign,
-  Clock,
+  Receipt,
   ArrowRight,
   ShoppingCart,
   Calendar,
@@ -32,18 +32,24 @@ function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [rangeDays, setRangeDays] = useState(7);
   const navigate = useNavigate();
   const role = (localStorage.getItem("role") || "staff").toLowerCase();
+  const permissions = JSON.parse(localStorage.getItem("permissions") || "{}");
+  const canCreateSale = role === 'admin' || permissions?.sales?.create;
+  const canReadMedicine = role === 'admin' || permissions?.medicine?.read;
+  const canCreatePurchase = role === 'admin' || permissions?.purchase?.create;
+  const canReadSales = role === 'admin' || permissions?.sales?.read;
 
   useEffect(() => {
     loadDashboardData();
-  }, []);
+  }, [rangeDays]);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
       setError(false);
-      const res = await API.get("inventory/dashboard/");
+      const res = await API.get(`inventory/dashboard/?days=${rangeDays}`);
       setData(res.data);
     } catch (err) {
       console.error("Error loading dashboard", err);
@@ -66,41 +72,50 @@ function Dashboard() {
     );
   }
 
+  // Helper values for cards
+  const currentSales  = rangeDays === 1 ? data?.summary?.today_sales  : data?.summary?.range_sales;
+  const currentBills  = rangeDays === 1 ? data?.summary?.today_bills  : data?.summary?.range_bills;
+  const currentCollection = rangeDays === 1 ? data?.summary?.today_collection : data?.summary?.range_collection;
+  const avgBillValue  = currentBills > 0 ? (currentSales / currentBills) : 0;
+
   const summaryCards = [
     {
-      label: "Today's Sales",
-      value: `₹${data?.summary?.today_sales?.toLocaleString("en-IN") || 0}`,
+      label: rangeDays === 1 ? "Today's Sales" : `Sales (Last ${rangeDays} Days)`,
+      value: `₹${(currentSales || 0).toLocaleString("en-IN")}`,
       icon: ShoppingCart,
-      color: "#10b981", // Emerald
+      color: "#10b981",
       bg: "#ecfdf5",
-      desc: `${data?.summary?.today_bills || 0} bills generated today`,
+      desc: `${currentBills || 0} bills generated`,
+      growth: data?.summary?.growth?.sales
     },
     {
-      label: "Today's Bills",
-      value: data?.summary?.today_bills || 0,
+      label: rangeDays === 1 ? "Today's Bills" : `Total Bills (${rangeDays}D)`,
+      value: currentBills || 0,
       icon: FileText,
-      color: "#3b82f6", // Blue
+      color: "#3b82f6",
       bg: "#eff6ff",
       desc: "Total invoices issued",
+      growth: data?.summary?.growth?.bills
     },
     {
-      label: "Today's Collection",
-      value: `₹${data?.summary?.today_collection?.toLocaleString("en-IN") || 0}`,
+      label: rangeDays === 1 ? "Today's Collection" : `Collection (${rangeDays}D)`,
+      value: `₹${(currentCollection || 0).toLocaleString("en-IN")}`,
       icon: DollarSign,
-      color: "#06b6d4", // Cyan
+      color: "#06b6d4",
       bg: "#ecfeff",
-      desc: "Total cash/UPI received",
+      desc: rangeDays === 1 ? "Cash/UPI received today" : `Total received in ${rangeDays} days`,
+      growth: data?.summary?.growth?.collection
     },
     {
-      label: "Pending Payments",
-      value: `₹${data?.summary?.pending_payments?.toLocaleString("en-IN") || 0}`,
-      icon: Clock,
-      color: "#f59e0b", // Amber
-      bg: "#fffbeb",
-      desc: "Outstanding from customers",
+      label: rangeDays === 1 ? "Avg. Bill (Today)" : `Avg. Bill (${rangeDays}D)`,
+      value: `₹${avgBillValue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`,
+      icon: Receipt,
+      color: "#8b5cf6",
+      bg: "#f5f3ff",
+      desc: "Average value per invoice",
     },
   ];
-
+  
   const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899"];
 
   const pieData = data?.charts?.payment_mode?.map(item => ({
@@ -109,41 +124,76 @@ function Dashboard() {
   })) || [];
 
   return (
-    <Layout title="Dashboard" subtitle={`Welcome back, ${role}. Here's what's happening today.`}>
+    <Layout title="Dashboard" subtitle={`Welcome back, ${role}. Here's what's happening.`}>
       <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", justifyContent: "flex-end" }}>
-        <button className="filter-btn"><Calendar size={16} /> Last 7 Days</button>
-        <button className="btn-primary" onClick={() => navigate("/billing")}>
-          <PlusCircle size={18} /> Create New Sale
-        </button>
-      </div>
-
-      {/* Top Row - Summary Cards */}
-      <div className="dashboard-grid">
-        {summaryCards.map((card, idx) => (
-          <div key={idx} className="card stat-card" style={{ padding: "1.25rem", border: "none", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
-              <div style={{ width: "42px", height: "42px", borderRadius: "12px", backgroundColor: card.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <card.icon size={22} color={card.color} />
+        <div style={{ display: "flex", background: "#f1f5f9", padding: "4px", borderRadius: "10px", gap: "4px" }}>
+            {[1, 7, 30].map(d => (
+                <button 
+                  key={d}
+                  onClick={() => setRangeDays(d)}
+                  style={{ 
+                    padding: "6px 12px", 
+                    borderRadius: "8px", 
+                    border: "none", 
+                    background: rangeDays === d ? "white" : "transparent",
+                    color: rangeDays === d ? "var(--primary)" : "#64748b",
+                    fontSize: "0.85rem",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                    boxShadow: rangeDays === d ? "0 2px 4px rgba(0,0,0,0.05)" : "none"
+                  }}
+                >
+                    {d === 1 ? "Today" : `${d} Days`}
+                </button>
+            ))}
+        </div>
+          {canCreateSale && (
+            <button className="btn-primary" onClick={() => navigate("/billing")}>
+              <PlusCircle size={18} /> Create New Sale
+            </button>
+          )}
+        </div>
+  
+        {/* Top Row - Summary Cards */}
+        <div className="dashboard-grid">
+          {summaryCards.map((card, idx) => {
+            const Icon = card.icon;
+            return (
+              <div key={idx} className="card stat-card" style={{ padding: "1.25rem", border: "none", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
+                  <div style={{ width: "42px", height: "42px", borderRadius: "12px", backgroundColor: card.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon size={22} color={card.color} />
+                  </div>
+                  {card.growth !== undefined && rangeDays !== 1 && (
+                    <span style={{ 
+                      fontSize: "0.75rem", 
+                      color: card.growth >= 0 ? "#10b981" : "#ef4444", 
+                      fontWeight: "600", 
+                      display: "flex", 
+                      alignItems: "center", 
+                      gap: "2px" 
+                    }}>
+                      <TrendingUp size={12} style={{ transform: card.growth < 0 ? 'rotate(180deg)' : 'none' }} /> 
+                      {card.growth >= 0 ? '+' : ''}{card.growth}%
+                    </span>
+                  )}
+                </div>
+                <h3 style={{ margin: 0, fontSize: "1.75rem", fontWeight: "800", color: "#1e293b" }}>{card.value}</h3>
+                <p style={{ margin: "4px 0 10px 0", fontSize: "0.9rem", color: "#64748b", fontWeight: "600" }}>{card.label}</p>
+                <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "10px", marginTop: "5px", fontSize: "0.8rem", color: "#94a3b8" }}>
+                  {card.desc}
+                </div>
               </div>
-              <span style={{ fontSize: "0.75rem", color: "#10b981", fontWeight: "600", display: "flex", alignItems: "center", gap: "2px" }}>
-                <TrendingUp size={12} /> +12%
-              </span>
-            </div>
-            <h3 style={{ margin: 0, fontSize: "1.75rem", fontWeight: "800", color: "#1e293b" }}>{card.value}</h3>
-            <p style={{ margin: "4px 0 10px 0", fontSize: "0.9rem", color: "#64748b", fontWeight: "600" }}>{card.label}</p>
-            <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "10px", marginTop: "5px", fontSize: "0.8rem", color: "#94a3b8" }}>
-              {card.desc}
-            </div>
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
 
       {/* Middle Row - Charts */}
       <div className="chart-grid">
         <div className="card" style={{ padding: "1.5rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
             <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "700" }}>Sales Trend</h3>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Last 7 Days</span>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Last {rangeDays} Days</span>
           </div>
           <div style={{ height: "300px", width: "100%" }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -197,7 +247,7 @@ function Dashboard() {
               <span style={{ fontSize: "0.7rem", color: "var(--danger)" }}>Items</span>
             </div>
           </div>
-          <Link to="/inventory" className="panel-action">View Details <ArrowRight size={14} /></Link>
+          {canReadMedicine && <Link to="/inventory" className="panel-action">View Details <ArrowRight size={14} /></Link>}
         </div>
         <div className="alert-panel orange">
           <div>
@@ -207,7 +257,7 @@ function Dashboard() {
               <span style={{ fontSize: "0.7rem", color: "var(--warning)" }}>Batches</span>
             </div>
           </div>
-          <Link to="/inventory?filter=expiring" className="panel-action">View Details <ArrowRight size={14} /></Link>
+          {canReadMedicine && <Link to="/inventory?filter=expiring" className="panel-action">View Details <ArrowRight size={14} /></Link>}
         </div>
         <div className="alert-panel red">
           <div>
@@ -217,16 +267,17 @@ function Dashboard() {
               <span style={{ fontSize: "0.7rem", color: "var(--danger)" }}>Critical</span>
             </div>
           </div>
-          <Link to="/purchase" className="panel-action">Create Purchase <ArrowRight size={14} /></Link>
+          {canCreatePurchase && <Link to="/purchase" className="panel-action">Create Purchase <ArrowRight size={14} /></Link>}
         </div>
         <div className="alert-panel orange">
           <div>
-            <h4 style={{ margin: 0, fontSize: "0.85rem", color: "#64748b" }}>Pending Payments</h4>
+            <h4 style={{ margin: 0, fontSize: "0.85rem", color: "#64748b" }}>GST Collected</h4>
             <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginTop: "4px" }}>
-              <span style={{ fontSize: "1.25rem", fontWeight: "700" }}>₹{data?.alerts?.pending_payments?.toLocaleString("en-IN") || 0}</span>
+              <span style={{ fontSize: "1.25rem", fontWeight: "700" }}>₹{(currentCollection - (currentCollection / 1.12))?.toLocaleString("en-IN", { maximumFractionDigits: 0 }) || 0}</span>
+              <span style={{ fontSize: "0.7rem", color: "var(--warning)" }}>Est. (12% GST)</span>
             </div>
           </div>
-          <Link to="/customers" className="panel-action">View Ledger <ArrowRight size={14} /></Link>
+          {canReadSales && <Link to="/sales-report" className="panel-action">View Report <ArrowRight size={14} /></Link>}
         </div>
       </div>
 

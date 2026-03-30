@@ -8,9 +8,16 @@ import toast from "react-hot-toast";
  * - Standardized Error Interception
  */
 
+const DEFAULT_API_BASE_URL = "http://localhost:8000/api/";
+
+const normalizeBaseUrl = (url) => {
+  if (!url) return url;
+  return url.endsWith("/") ? url : `${url}/`;
+};
+
 const API = axios.create({
-  // Security: Use environment variable, fallback to localhost only in dev
-  baseURL: process.env.REACT_APP_API_URL || "http://localhost:8000/api/",
+  // CRA build-time env var (configure on Vercel as REACT_APP_API_URL)
+  baseURL: normalizeBaseUrl(process.env.REACT_APP_API_URL) || DEFAULT_API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -80,7 +87,9 @@ API.interceptors.response.use(
       const data = error.response.data;
 
       if (status === 403) {
-        toast.error("Permission Denied: You do not have access to this module.");
+        if (!originalRequest.silent) {
+           toast.error("Permission Denied: You do not have access to this module.");
+        }
       } else if (status === 429) {
         toast.error("Too many requests. Please slow down.");
       } else if (status >= 500) {

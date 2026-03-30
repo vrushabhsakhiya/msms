@@ -47,14 +47,35 @@ class Sale(models.Model):
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Final')
 
+    # 🛡️ Idempotency Token — Prevents double billing on network retry/refresh
+    # Frontend generates a UUID before submitting. Backend rejects duplicates.
+    idempotency_key = models.CharField(max_length=100, blank=True, default='', db_index=True)
+
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         # Security: Multi-tenant unique constraint for invoice numbers
-        unique_together = ('shop', 'invoice_number')
+        unique_together = [('shop', 'invoice_number')]
         ordering = ['-created_at']
+        constraints = [
+            # 🛡️ Prevent zero or negative bills from being stored
+            models.CheckConstraint(
+                check=models.Q(net_amount__gte=0),
+                name='sale_net_amount_non_negative'
+            ),
+            models.CheckConstraint(
+                check=models.Q(total_quantity__gt=0),
+                name='sale_total_quantity_positive'
+            ),
+            # 🛡️ Idempotency: one unique billing event per shop (prevents double-billing)
+            models.UniqueConstraint(
+                fields=['shop', 'idempotency_key'],
+                condition=models.Q(idempotency_key__gt=''),
+                name='sale_idempotency_per_shop'
+            ),
+        ]
 
     def __str__(self):
         return f"{self.invoice_number} - {self.customer_name}"

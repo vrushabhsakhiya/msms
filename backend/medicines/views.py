@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 NOT_FOUND_MSG = "Medicine not found"
 DEFAULT_HSN = '3004'
 HSN_CODE_HEADER = 'HSN Code'
+MEDICINE_TYPE = 'Medicine Type'
+BATCH_NUMBER = 'Batch Number'
 
 # --- API Endpoints ---
 @api_view(['POST'])
@@ -37,11 +39,19 @@ def add_medicine(request):
 @permission_classes([IsAuthenticated, CanAccessMedicines])
 def get_medicines(request):
     """
-    List all medicines for the authenticated shop.
+    List medicines for the authenticated shop with server-side pagination.
     """
+    from rest_framework.pagination import PageNumberPagination
+    
     medicines = Medicine.objects.filter(shop=request.user.shop).select_related('supplier').order_by('medicine_name')
-    serializer = MedicineSerializer(medicines, many=True)
-    return Response(serializer.data, status=200)
+    
+    # Check if pagination is requested (handled automatically by DRF setting, but keeping this explicit for clarity)
+    paginator = PageNumberPagination()
+    paginator.page_size = request.query_params.get('page_size', 50)
+    
+    result_page = paginator.paginate_queryset(medicines, request)
+    serializer = MedicineSerializer(result_page, many=True, context={'request': request})
+    return paginator.get_paginated_response(serializer.data)
 
 
 @api_view(['GET'])
@@ -106,27 +116,40 @@ def search_medicines(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsAdminUser])
 def export_medicines_csv(request):
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="medicines_export.csv"'
-    
-    writer = csv.writer(response)
-    writer.writerow([
-        'Medicine Code', 'Medicine Name', 'Generic Name', 'Company', 'Category', 
-        'Medicine Type', HSN_CODE_HEADER, 'Composition', 'Pack Size', 'Purchase Price', 
-        'MRP', 'Selling Price', 'Discount %', 'GST %', 'Reorder Level', 
-        'Max Stock', 'Stock Qty', 'Batch Number', 'Rack Location', 'Prescription Required'
-    ])
-    
-    medicines = Medicine.objects.filter(shop=request.user.shop).order_by('medicine_name')
-    for m in medicines:
-        writer.writerow([
-            m.medicine_code, m.medicine_name, m.generic_name, m.company, m.category,
-            m.medicine_type, m.hsn_code, m.composition, m.pack_size, m.purchase_price,
-            m.mrp, m.selling_price, m.discount, m.gst_percentage, m.reorder_level,
-            m.max_stock_level, m.stock_quantity, m.batch_number, m.rack_location,
-            'Yes' if m.prescription_required else 'No'
+    """
+    Memory-efficient CSV Export using StreamingHttpResponse.
+    Harden: Prevents server timeout and memory spikes for large catalogs.
+    """
+    from django.http import StreamingHttpResponse
+
+    class Echo:
+        def write(self, value): return value
+
+    def stream_medicines():
+        buffer = Echo()
+        writer = csv.writer(buffer)
+        
+        # Header
+        yield writer.writerow([
+            'Medicine Code', 'Medicine Name', 'Generic Name', 'Company', 'Category', 
+            MEDICINE_TYPE, HSN_CODE_HEADER, 'Composition', 'Pack Size', 'Purchase Price', 
+            'MRP', 'Selling Price', 'Discount %', 'GST %', 'Reorder Level', 
+            'Max Stock', 'Stock Qty', BATCH_NUMBER, 'Rack Location', 'Prescription Required'
         ])
         
+        # Rows: Chunked query to handle large sets
+        medicines = Medicine.objects.filter(shop=request.user.shop).order_by('medicine_name').iterator(chunk_size=1000)
+        for m in medicines:
+            yield writer.writerow([
+                m.medicine_code, m.medicine_name, m.generic_name, m.company, m.category,
+                m.medicine_type, m.hsn_code, m.composition, m.pack_size, m.purchase_price,
+                m.mrp, m.selling_price, m.discount, m.gst_percentage, m.reorder_level,
+                m.max_stock_level, m.stock_quantity, m.batch_number, m.rack_location,
+                'Yes' if m.prescription_required else 'No'
+            ])
+            
+    response = StreamingHttpResponse(stream_medicines(), content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="medicines_export.csv"'
     return response
 
 

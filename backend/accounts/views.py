@@ -9,33 +9,19 @@ import secrets
 import string
 import logging
 
-from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, UserRoleSerializer, ShopRegisterSerializer
-from .models import User, UserRole, Shop, LoginOTP, ResetOTP, SystemSettings
+from .serializers import RegisterSerializer, LoginSerializer, UserSerializer, UserRoleSerializer, ShopRegisterSerializer, AuditLogSerializer
+from .models import User, UserRole, Shop, LoginOTP, ResetOTP, SystemSettings, AuditLog
 from .permissions import IsAdminUser
 
 logger = logging.getLogger(__name__)
 
 # --- Helper Functions ---
-def generate_secure_otp():
-    """Generates a cryptographically secure 8-character complex OTP"""
-    uppercase_chars = string.ascii_uppercase
-    lowercase_chars = string.ascii_lowercase
-    digits = string.digits
-    special_chars = "!@#$%^&*()"
-    
-    otp_chars = [
-        secrets.choice(uppercase_chars),
-        secrets.choice(lowercase_chars),
-        secrets.choice(digits),
-        secrets.choice(special_chars)
-    ]
-    all_allowed = uppercase_chars + lowercase_chars + digits + special_chars
-    otp_chars += [secrets.choice(all_allowed) for _ in range(4)]
-    
-    # Secure shuffle (since random.shuffle is not cryptographically secure)
-    sys_rand = secrets.SystemRandom()
-    sys_rand.shuffle(otp_chars)
-    return "".join(otp_chars)
+def generate_secure_otp(length=8):
+    """Generates a cryptographically secure complex OTP"""
+    import secrets
+    import string
+    chars = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(chars) for _ in range(length))
 
 
 # --- Shop & Auth Views ---
@@ -124,9 +110,8 @@ def resend_login_otp(request):
     if not email:
         return Response({"error": "Email is required."}, status=400)
     
-    try:
-        user = User.objects.get(email__iexact=email)
-    except User.DoesNotExist:
+    user = User.objects.filter(email__iexact=email).order_by('-last_login').first()
+    if not user:
         # Prevent Account Enumeration Reconnaissance
         return Response({"message": "If that account exists, a fresh OTP has been sent."})
 
@@ -279,7 +264,9 @@ def change_password(request):
 def forgot_password(request):
     email = request.data.get("email")
     try:
-        user = User.objects.get(email=email)
+        user_matches = list(User.objects.filter(email=email))
+        if not user_matches: raise User.DoesNotExist
+        user = user_matches[0]
         
         # Secure Cryptographic OTP Generation (No random.randint!)
         sys_rand = secrets.SystemRandom()
@@ -311,16 +298,35 @@ def reset_password(request):
     new_password = request.data.get("new_password")
     
     try:
-        user = User.objects.get(email=email)
+        user_matches = list(User.objects.filter(email=email))
+        if not user_matches: raise User.DoesNotExist
+        user = user_matches[0]
+        for u in user_matches:
+            rec = ResetOTP.objects.filter(user=u, otp=otp, is_used=False).order_by('-created_at').first()
+            if rec:
+                user = u
+                break
+
         otp_record = ResetOTP.objects.filter(user=user, otp=otp, is_used=False).order_by('-created_at').first()
         
-        if otp_record and otp_record.is_valid():
+        if not otp_record:
+            return Response({"error": "Invalid or expired OTP"}, status=400)
+
+        if not otp_record.is_valid():
+             raise serializers.ValidationError("OTP expired.")
+
+        if otp_record.otp == otp:
             user.set_password(new_password)
             user.save()
             otp_record.is_used = True
             otp_record.save()
             return Response({"message": "Password reset successful"}, status=200)
-        return Response({"error": "Invalid or expired OTP"}, status=400)
+        else:
+            otp_record.failed_attempts += 1
+            if otp_record.failed_attempts >= 5:
+                 otp_record.is_used = True
+            otp_record.save()
+            return Response({"error": "Invalid OTP"}, status=400)
     except User.DoesNotExist:
         return Response({"error": "User not found"}, status=404)
 
@@ -332,3 +338,11 @@ def get_branding(request):
     branding = SystemSettings.load()
     logo_url = request.build_absolute_uri(branding.logo.url) if branding.logo else None
     return Response({"product_name": branding.product_name, "logo": logo_url})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsAdminUser])
+def get_audit_logs(request):
+    """Retrieve the last 200 audit logs for the current shop"""
+    logs = AuditLog.objects.filter(user__shop=request.user.shop).order_by('-created_at')[:200]
+    serializer = AuditLogSerializer(logs, many=True)
+    return Response(serializer.data)

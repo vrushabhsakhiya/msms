@@ -1,19 +1,32 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import API from "../services/api";
 import Layout from "../components/Layout";
 import {
-  BarChart3,
-  TrendingUp,
-  FileText,
-  Calendar,
-  Download,
-  Printer,
-  Filter,
-  ChevronRight,
-  CreditCard,
-  BadgePercent,
-  ArrowUpRight
+  TrendingUp, FileText, Download, Printer, BadgePercent, ArrowUpRight, BarChart3
 } from "lucide-react";
+import {
+  AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Cell
+} from "recharts";
+
+const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899"];
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: "white", borderRadius: "12px", padding: "12px 16px", boxShadow: "0 10px 25px rgba(0,0,0,0.1)" }}>
+        <p style={{ margin: "0 0 6px 0", fontWeight: "700", color: "#1e293b" }}>{label}</p>
+        {payload.map((p, i) => (
+          <p key={i} style={{ margin: "2px 0", fontSize: "0.85rem", color: p.color, fontWeight: "600" }}>
+            {p.name === "revenue" ? `₹${p.value.toLocaleString("en-IN")}` : `${p.value} Bills`}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
 function SalesReport() {
   const [report, setReport] = useState(null);
@@ -25,6 +38,20 @@ function SalesReport() {
     payment_mode: "All",
     customer_type: "All"
   });
+
+  const handlePrint = useCallback(() => window.print(), []);
+
+  // Ctrl+P shortcut
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "p") {
+        e.preventDefault();
+        handlePrint();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [handlePrint]);
 
   const fetchReport = async () => {
     try {
@@ -39,59 +66,71 @@ function SalesReport() {
     }
   };
 
-  useEffect(() => {
-    fetchReport();
-  }, [filters]);
+  useEffect(() => { fetchReport(); }, [filters]);
 
-  const handlePrint = () => window.print();
+  const downloadCSV = () => {
+    if (!report) return;
+    let csv = "Sales Analysis Report\n";
+    csv += `Period: ${filters.start_date} to ${filters.end_date}\n\n`;
+    csv += "Invoice No,Date,Customer,Mobile,Mode,Discount,Net Amount(₹)\n";
+    report.recent_sales.forEach(sale => {
+      csv += `"${sale.invoice_number}","${new Date(sale.created_at).toLocaleDateString()}","${sale.customer_name}","${sale.customer_mobile || "Walk-in"}","${sale.payment_mode}",${sale.discount_amount},${sale.net_amount}\n`;
+    });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Sales_Report_${filters.start_date}_to_${filters.end_date}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  // Format trend data for Recharts
+  const trendData = (report?.daily_trend || []).map(d => ({
+    date: new Date(d.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+    revenue: Number.parseFloat(d.revenue || 0),
+    bills: d.bills || 0
+  }));
 
   return (
     <Layout>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
+      {/* Header */}
+      <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
         <div>
           <h2 style={{ margin: 0, fontWeight: "800", fontSize: "2rem", display: "flex", alignItems: "center", gap: "10px" }}>
             <TrendingUp size={32} className="text-secondary" /> Sales Analysis
           </h2>
-          <p style={{ margin: "5px 0 0 0", color: "#64748b" }}>Comprehensive revenue tracking and payment analytics</p>
+          <p style={{ margin: "5px 0 0 0", color: "#64748b" }}>Comprehensive sales tracking and payment analytics</p>
         </div>
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button className="btn-secondary" onClick={handlePrint}>
-            <Printer size={18} /> Print
+        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <button className="btn-secondary" onClick={handlePrint} title="Print (Ctrl+P)">
+            <Printer size={18} /> Print PDF
           </button>
-          <button className="btn-primary" style={{ backgroundColor: "#065f46" }}>
-            <Download size={18} /> Export PDF
+          <button className="btn-primary" style={{ backgroundColor: "#065f46" }} onClick={downloadCSV}>
+            <Download size={18} /> Export CSV
           </button>
         </div>
       </div>
 
       {/* Filter Panel */}
-      <div className="card" style={{ marginBottom: "2rem", padding: "1.5rem" }}>
+      <div className="card no-print" style={{ marginBottom: "2rem", padding: "1.5rem" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1.5rem" }}>
           <div className="form-group">
             <label style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "#94a3b8", fontWeight: "700" }}>Start Date</label>
-            <input
-              type="date"
-              className="custom-input"
-              value={filters.start_date}
-              onChange={(e) => setFilters({ ...filters, start_date: e.target.value })}
-            />
+            <input type="date" className="custom-input" value={filters.start_date}
+              onChange={(e) => setFilters({ ...filters, start_date: e.target.value })} />
           </div>
           <div className="form-group">
             <label style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "#94a3b8", fontWeight: "700" }}>End Date</label>
-            <input
-              type="date"
-              className="custom-input"
-              value={filters.end_date}
-              onChange={(e) => setFilters({ ...filters, end_date: e.target.value })}
-            />
+            <input type="date" className="custom-input" value={filters.end_date}
+              onChange={(e) => setFilters({ ...filters, end_date: e.target.value })} />
           </div>
           <div className="form-group">
             <label style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "#94a3b8", fontWeight: "700" }}>Payment Mode</label>
-            <select
-              className="custom-input"
-              value={filters.payment_mode}
-              onChange={(e) => setFilters({ ...filters, payment_mode: e.target.value })}
-            >
+            <select className="custom-input" value={filters.payment_mode}
+              onChange={(e) => setFilters({ ...filters, payment_mode: e.target.value })}>
               <option value="All">All Modes</option>
               <option value="Cash">Cash</option>
               <option value="UPI">UPI</option>
@@ -100,11 +139,8 @@ function SalesReport() {
           </div>
           <div className="form-group">
             <label style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "#94a3b8", fontWeight: "700" }}>Customer Type</label>
-            <select
-              className="custom-input"
-              value={filters.customer_type}
-              onChange={(e) => setFilters({ ...filters, customer_type: e.target.value })}
-            >
+            <select className="custom-input" value={filters.customer_type}
+              onChange={(e) => setFilters({ ...filters, customer_type: e.target.value })}>
               <option value="All">All Types</option>
               <option value="Walk-in">Walk-in</option>
               <option value="Registered">Registered</option>
@@ -113,58 +149,104 @@ function SalesReport() {
         </div>
       </div>
 
+      {loading && (
+        <div style={{ textAlign: "center", padding: "3rem", color: "#94a3b8" }}>Loading report...</div>
+      )}
+
       {report && (
-        <>
-          {/* Summary Stats */}
+        <div className="print-area">
+          <style>{`
+            @media print {
+              .no-print, .sidebar, .navbar, .layout-header, header, footer, .btn-primary, .btn-secondary {
+                display: none !important;
+              }
+              .layout-content, .main-content, .print-area {
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+                overflow: visible !important;
+              }
+              .card {
+                border: 1px solid #e2e8f0 !important;
+                box-shadow: none !important;
+                margin-bottom: 2rem !important;
+                padding: 1.5rem !important;
+                overflow: visible !important;
+              }
+              table { width: 100% !important; border-collapse: collapse !important; }
+              th, td { border: 1px solid #cbd5e1 !important; padding: 10px !important; font-size: 11px !important; }
+              body { background: white !important; }
+              .recharts-responsive-container { display: none !important; }
+            }
+          `}</style>
+
+          {/* Summary Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1.5rem", marginBottom: "2rem" }}>
-            <SummaryCard title="Total Revenue" value={`₹${report.summary.total_revenue.toLocaleString()}`} color="#10b981" icon={<TrendingUp />} />
+            <SummaryCard title="Total Sales" value={`₹${report.summary.total_revenue.toLocaleString("en-IN")}`} color="#10b981" icon={<TrendingUp />} />
             <SummaryCard title="Total Invoices" value={report.summary.total_bills} color="#3b82f6" icon={<FileText />} />
-            <SummaryCard title="Avg. Bill Value" value={`₹${report.summary.avg_bill}`} color="#8b5cf6" icon={<ArrowUpRight />} />
-            <SummaryCard title="Total Tax (GST)" value={`₹${report.summary.total_tax.toLocaleString()}`} color="#f59e0b" icon={<BadgePercent />} />
+            <SummaryCard title="Avg. Bill Value" value={`₹${report.summary.avg_bill.toLocaleString("en-IN")}`} color="#8b5cf6" icon={<ArrowUpRight />} />
+            <SummaryCard title="Total Tax (GST)" value={`₹${report.summary.total_tax.toLocaleString("en-IN")}`} color="#f59e0b" icon={<BadgePercent />} />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "2rem", marginBottom: "2rem" }}>
-            {/* Chart Placeholder */}
-            <div className="card">
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1.5rem" }}>
-                <h3 style={{ margin: 0 }}>Revenue Trend</h3>
-                <BarChart3 size={20} className="text-muted" />
+          {/* Charts */}
+          <div className="no-print" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "2rem", marginBottom: "2rem" }}>
+            {/* Sales Trend - AreaChart */}
+            <div className="card" style={{ padding: "1.5rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+                <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "700" }}>Sales Trend</h3>
+                <BarChart3 size={20} style={{ color: "#94a3b8" }} />
               </div>
-              <div style={{ height: "250px", backgroundColor: "#f8fafc", borderRadius: "12px", border: "1px dashed #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <div style={{ textAlign: "center", color: "#94a3b8" }}>
-                  <ActivityChart data={report.daily_trend} />
-                </div>
+              <div style={{ height: "260px" }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area type="monotone" dataKey="revenue" stroke="var(--primary)" fillOpacity={0.1} strokeWidth={3} />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
 
-            {/* Payment Mode Breakdown */}
-            <div className="card">
-              <h3 style={{ margin: "0 0 1.5rem 0" }}>By Payment Mode</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {/* Payment Mode */}
+            <div className="card" style={{ padding: "1.5rem" }}>
+              <h3 style={{ margin: "0 0 1.5rem 0", fontSize: "1.1rem", fontWeight: "700" }}>By Payment Mode</h3>
+              <div style={{ height: "180px", marginBottom: "1rem" }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={report.payment_breakdown}>
+                    <XAxis dataKey="payment_mode" hide />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
+                      {report.payment_breakdown.map((_, idx) => (
+                        <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {report.payment_breakdown.map((pm, idx) => (
-                  <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px", backgroundColor: "#f8fafc", borderRadius: "10px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: idx === 0 ? "#10b981" : idx === 1 ? "#3b82f6" : "#f59e0b" }}></div>
-                      <span style={{ fontWeight: "700" }}>{pm.payment_mode}</span>
+                  <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", backgroundColor: "#f8fafc", borderRadius: "8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: COLORS[idx % COLORS.length] }} />
+                      <span style={{ fontWeight: "700", fontSize: "0.85rem" }}>{pm.payment_mode}</span>
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontWeight: "800" }}>₹{pm.amount.toLocaleString()}</div>
-                      <div style={{ fontSize: "0.7rem", color: "#64748b" }}>{pm.count} Invoices</div>
-                    </div>
+                    <div style={{ fontWeight: "800" }}>₹{Number.parseFloat(pm.amount || 0).toLocaleString("en-IN")}</div>
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Detailed Transaction List */}
+          {/* Transactions Table */}
           <div className="card">
             <h3 style={{ margin: "0 0 1.5rem 0" }}>Recent Transactions</h3>
             <table className="table">
               <thead>
                 <tr>
                   <th>Invoice No.</th>
-                  <th>Date & Time</th>
+                  <th>Date &amp; Time</th>
                   <th>Customer</th>
                   <th>Mode</th>
                   <th style={{ textAlign: "right" }}>Discount</th>
@@ -176,30 +258,16 @@ function SalesReport() {
                   <tr key={sale.id}>
                     <td style={{ fontWeight: "800", color: "var(--primary)" }}>{sale.invoice_number}</td>
                     <td>{new Date(sale.created_at).toLocaleString()}</td>
-                    <td>
-                      <div style={{ fontWeight: "600" }}>{sale.customer_name}</div>
-                      <div style={{ fontSize: "0.7rem", color: "#64748b" }}>{sale.customer_mobile || "Walk-in"}</div>
-                    </td>
-                    <td>
-                      <span style={{
-                        padding: "4px 8px",
-                        backgroundColor: "rgba(59, 130, 246, 0.1)",
-                        color: "#3b82f6",
-                        borderRadius: "6px",
-                        fontSize: "0.7rem",
-                        fontWeight: "800"
-                      }}>
-                        {sale.payment_mode.toUpperCase()}
-                      </span>
-                    </td>
+                    <td>{sale.customer_name}</td>
+                    <td>{sale.payment_mode}</td>
                     <td style={{ textAlign: "right", color: "#dc2626" }}>-₹{sale.discount_amount}</td>
-                    <td style={{ textAlign: "right", fontWeight: "800" }}>₹{parseFloat(sale.net_amount).toLocaleString()}</td>
+                    <td style={{ textAlign: "right", fontWeight: "800" }}>₹{Number.parseFloat(sale.net_amount).toLocaleString("en-IN")}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </>
+        </div>
       )}
     </Layout>
   );
@@ -208,42 +276,13 @@ function SalesReport() {
 function SummaryCard({ title, value, color, icon }) {
   return (
     <div className="card" style={{ borderLeft: `5px solid ${color}`, display: "flex", alignItems: "center", gap: "1rem" }}>
-      <div style={{
-        backgroundColor: `${color}15`,
-        color: color,
-        padding: "12px",
-        borderRadius: "12px"
-      }}>
+      <div style={{ backgroundColor: `${color}15`, color, padding: "12px", borderRadius: "12px" }}>
         {icon}
       </div>
       <div>
         <div style={{ fontSize: "0.75rem", color: "#64748b", textTransform: "uppercase", fontWeight: "700" }}>{title}</div>
         <div style={{ fontSize: "1.25rem", fontWeight: "900" }}>{value}</div>
       </div>
-    </div>
-  );
-}
-
-function ActivityChart({ data }) {
-  if (!data || data.length === 0) return <span>No trend data available for this range.</span>;
-
-  const maxRev = Math.max(...data.map(d => d.revenue)) || 1;
-
-  return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: "5px", height: "150px" }}>
-      {data.map((d, i) => (
-        <div
-          key={i}
-          title={`${d.date}: ₹${d.revenue}`}
-          style={{
-            width: "15px",
-            height: `${(d.revenue / maxRev) * 100}%`,
-            backgroundColor: "var(--primary)",
-            borderRadius: "4px 4px 0 0",
-            opacity: 0.7 + (i / data.length) * 0.3
-          }}
-        />
-      ))}
     </div>
   );
 }

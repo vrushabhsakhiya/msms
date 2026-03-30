@@ -12,9 +12,13 @@ from django.template.loader import get_template
 from django.http import HttpResponse
 
 from rest_framework import serializers
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+import csv
+from datetime import date, timedelta
 
 from .serializers import SaleSerializer
 from .models import Sale, SaleItem, SaleReturn, SaleReturnItem
@@ -536,4 +540,98 @@ def gstr1_report(request):
         }, status=200)
     except Exception as e:
         logger.error(f"GST R1 Serialization Error: {e}")
-        return Response({"error": "Internal analytical failure during GST grouping."}, status=500)
+        return Response({"error": "Internal analytical failure during GST grouping."}, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, HasSalesAccess])
+@parser_classes([MultiPartParser])
+def import_sales_csv(request):
+    """Bulk import of sales/orders from CSV."""
+    file = request.FILES.get('file')
+    if not file:
+        return Response({"error": "No file provided"}, status=400)
+
+    try:
+        import csv
+        decoded_file = file.read().decode('utf-8').splitlines()
+        reader = csv.DictReader(decoded_file)
+        
+        # Header mapping & Helpers
+        fieldnames = reader.fieldnames or []
+        header_map = {f.strip().lower().replace(' ', '').replace('_', ''): f for f in fieldnames}
+        
+        def get_val(row, *aliases):
+            for a in aliases:
+                k = a.lower().replace(' ', '').replace('_', '')
+                if k in header_map: return row.get(header_map[k])
+            return None
+
+        # Group rows by (customer_mobile + timestamp/temp_id)
+        grouped_sales = {}
+        
+        with transaction.atomic():
+            for idx, row in enumerate(reader):
+                mobile = get_val(row, 'customer_mobile', 'mobile', 'phone') or '0000000000'
+                ref = get_val(row, 'order_number', 'reference', 'invoice_number', 'bill_no') or f"TEMP-{idx}"
+                
+                key = (mobile, ref)
+                if key not in grouped_sales:
+                    grouped_sales[key] = {
+                        "customer_mobile": mobile,
+                        "customer_name": get_val(row, 'customer_name', 'name', 'customer') or 'Walk-in Customer',
+                        "payment_mode": get_val(row, 'payment_mode', 'mode') or 'Cash',
+                        "status": "Final",
+                        "items": []
+                    }
+
+                med_name = get_val(row, 'medicine_name', 'item_name', 'medicine', 'item')
+                if not med_name: continue
+                
+                medicine = Medicine.objects.filter(shop=request.user.shop, medicine_name__iexact=med_name).first()
+                if not medicine: continue
+
+                # Try to find a batch automatically if not specified
+                batch_no = get_val(row, 'batch_number', 'batch_no', 'batch')
+                batch_query = StockBatch.objects.filter(shop=request.user.shop, medicine=medicine)
+                if batch_no:
+                    batch = batch_query.filter(batch_number__iexact=batch_no).first()
+                else:
+                    batch = batch_query.filter(quantity__gt=0).order_by('expiry_date').first()
+                
+                if not batch: continue # Skip if no stock
+
+                qty = int(get_val(row, 'quantity', 'qty') or 1)
+                rate = float(get_val(row, 'rate', 'price', 'selling_price', 'mrp') or batch.mrp)
+                gst = float(get_val(row, 'gst_percentage', 'gst', 'tax') or 12)
+
+                grouped_sales[key]["items"].append({
+                    "medicine": medicine.id,
+                    "batch": batch.id,
+                    "batch_number": batch.batch_number,
+                    "quantity": qty,
+                    "rate": rate,
+                    "gst_percentage": gst,
+                    "discount_percentage": Decimal('0'),
+                })
+
+            if not grouped_sales:
+                return Response({"error": "No valid sale records found in CSV. Required: medicine_name, quantity."}, status=400)
+
+            created_count = 0
+            for sale_data in grouped_sales.values():
+                if not sale_data["items"]: continue
+                
+                serializer = SaleSerializer(data=sale_data, context={'request': request})
+                if serializer.is_valid():
+                    serializer.save(created_by=request.user)
+                    created_count += 1
+                else:
+                    return Response({"error": f"Import Error: {serializer.errors}"}, status=400)
+
+            return Response({"message": f"Successfully imported {created_count} sales.", "count": created_count}, status=201)
+
+    except Exception as e:
+        import traceback
+        logger.error(traceback.format_exc())
+        return Response({"error": f"Import failed: {str(e)}"}, status=500)

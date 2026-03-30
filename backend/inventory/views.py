@@ -33,7 +33,9 @@ def inventory_summary(request):
     # Combined aggregation for performance
     medicine_stats = Medicine.objects.filter(shop=shop).aggregate(
         total_count=Count('id'),
-        low_stock=Count('id', filter=Q(stock_quantity__lte=F('reorder_level'))),
+        # Low Stock: stock > 0 but at or below reorder level (NOT counting zero-stock)
+        low_stock=Count('id', filter=Q(stock_quantity__gt=0, stock_quantity__lte=F('reorder_level'))),
+        # Out of Stock: stock = 0 only (separate from low stock)
         out_of_stock=Count('id', filter=Q(stock_quantity=0))
     )
     
@@ -61,32 +63,60 @@ def dashboard_view(request):
     """
     shop = request.user.shop
     today = date.today()
-    last_7_days = today - timedelta(days=6)
+    try:
+        days = int(request.query_params.get('days', 7))
+    except (ValueError, TypeError):
+        days = 7
+        
+    start_date = today - timedelta(days=days-1)
     next_30 = today + timedelta(days=30)
 
     # 1. Financial Analytics
-    today_sales_summary = Sale.objects.filter(shop=shop, created_at__date=today).aggregate(
+    # NOTE: Since all customers pay in full at counter, collection = net_amount (not amount_received).
+    # Using amount_received caused false gaps from historically saved bills.
+    today_sales_summary = Sale.objects.filter(shop=shop, created_at__date=today, status='Final').aggregate(
         revenue=Sum('net_amount'),
         bills=Count('id'),
-        collection=Sum('amount_received')
+        collection=Sum('net_amount')  # full payment always = net_amount
     )
     
-    pending_payments = Sale.objects.filter(
+    range_sales_summary = Sale.objects.filter(shop=shop, created_at__date__gte=start_date, status='Final').aggregate(
+        revenue=Sum('net_amount'),
+        bills=Count('id'),
+        collection=Sum('net_amount')  # full payment always = net_amount
+    )
+
+    # 1.1 Previous Period (For percentage growth calculation)
+    prev_start_date = start_date - timedelta(days=days)
+    prev_end_date = start_date - timedelta(days=1)
+    
+    prev_sales_summary = Sale.objects.filter(
         shop=shop, 
-        amount_received__lt=F('net_amount')
-    ).aggregate(pending=Sum(F('net_amount') - F('amount_received')))['pending'] or 0
+        created_at__date__range=[prev_start_date, prev_end_date],
+        status='Final'
+    ).aggregate(
+        revenue=Sum('net_amount'),
+        bills=Count('id'),
+        collection=Sum('net_amount')  # full payment always = net_amount
+    )
+
+    def calc_growth(curr, prev):
+        curr = float(curr or 0)
+        prev = float(prev or 0)
+        if prev == 0: return 100 if curr > 0 else 0
+        return round(((curr - prev) / prev) * 100, 1)
 
     # 2. Charts & Trends
     sales_trend = Sale.objects.filter(
         shop=shop, 
-        created_at__date__gte=last_7_days
+        created_at__date__gte=start_date
     ).annotate(date=TruncDate('created_at')).values('date').annotate(
         total=Sum('net_amount')
     ).order_by('date')
     
     trend_data = []
-    for i in range(7):
-        curr_date = last_7_days + timedelta(days=i)
+    for i in range(days):
+        curr_date = start_date + timedelta(days=i)
         found = next((item for item in sales_trend if item['date'] == curr_date), None)
         trend_data.append({
             "date": curr_date.strftime("%d %b"),
@@ -94,7 +124,7 @@ def dashboard_view(request):
         })
 
     # Payment Mode Breakdown
-    payment_modes = Sale.objects.filter(shop=shop, created_at__date=today).values('payment_mode').annotate(
+    payment_modes = Sale.objects.filter(shop=shop, created_at__date__gte=start_date).values('payment_mode').annotate(
         count=Count('id'),
         total=Sum('net_amount')
     )
@@ -120,7 +150,7 @@ def dashboard_view(request):
     # 5. Top Selling Medicines
     top_selling = SaleItem.objects.filter(
         sale__shop=shop, 
-        sale__created_at__date__gte=today - timedelta(days=30)
+        sale__created_at__date__gte=start_date
     ).values('medicine__medicine_name').annotate(
         total_qty=Sum('quantity')
     ).order_by('-total_qty')[:5]
@@ -130,7 +160,14 @@ def dashboard_view(request):
             "today_sales": float(today_sales_summary['revenue'] or 0),
             "today_bills": today_sales_summary['bills'] or 0,
             "today_collection": float(today_sales_summary['collection'] or 0),
-            "pending_payments": float(pending_payments)
+            "range_sales": float(range_sales_summary['revenue'] or 0),
+            "range_bills": range_sales_summary['bills'] or 0,
+            "range_collection": float(range_sales_summary['collection'] or 0),
+            "growth": {
+                "sales": calc_growth(range_sales_summary['revenue'], prev_sales_summary['revenue']),
+                "bills": calc_growth(range_sales_summary['bills'], prev_sales_summary['bills']),
+                "collection": calc_growth(range_sales_summary['collection'], prev_sales_summary['collection']),
+            }
         },
         "charts": {
             "sales_trend": trend_data,
@@ -140,11 +177,11 @@ def dashboard_view(request):
             "low_stock": alert_counts['low_stock'],
             "expiring_soon": expiring_soon,
             "out_of_stock": alert_counts['out_of_stock'],
-            "pending_payments": float(pending_payments)
         },
         "recent_activity": activity_data,
         "top_selling": list(top_selling),
-        "total_medicines": Medicine.objects.filter(shop=shop).count() # redundant with old STATS
+        "total_medicines": Medicine.objects.filter(shop=shop).count(), # redundant with old STATS
+        "range_days": days
     })
 
 
@@ -153,17 +190,24 @@ def dashboard_view(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def low_stock_alerts(request):
+    # Include both: low stock (stock <= reorder_level) AND out of stock (stock = 0)
     medicines = Medicine.objects.filter(
         shop=request.user.shop,
-        stock_quantity__lte=F('reorder_level')
+    ).filter(
+        Q(stock_quantity__lte=F('reorder_level')) | Q(stock_quantity=0)
     ).values(
         'id', 'medicine_name', 'stock_quantity', 'reorder_level', 'updated_at'
-    )
-    
+    ).order_by('stock_quantity')  # Out of stock (0) appears first
+
     data = []
     for med in medicines:
+        if med['stock_quantity'] == 0:
+            status = 'out_of_stock'
+        else:
+            status = 'low_stock'
         data.append({
             **med,
+            "status": status,
             "difference": med['stock_quantity'] - med['reorder_level'],
             "suggested_qty": max(0, (med['reorder_level'] * 2) - med['stock_quantity'])
         })

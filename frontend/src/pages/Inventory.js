@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import API from "../services/api";
 import Layout from "../components/Layout";
 import PropTypes from 'prop-types';
@@ -42,10 +43,16 @@ SummaryCard.defaultProps = {
 };
 
 function Inventory() {
+    const navigate = useNavigate();
     const [summary, setSummary] = useState(null);
     const [activeTab, setActiveTab] = useState("overview"); // overview, alerts, adjustment, movement
     const [subTab, setSubTab] = useState("low-stock"); // low-stock, expiry
     const [loading, setLoading] = useState(true);
+
+    const role = (localStorage.getItem("role") || "staff").toLowerCase();
+    const permissions = JSON.parse(localStorage.getItem("permissions") || "{}");
+    const canUpdateStock = role === "admin" || permissions?.medicine?.update;
+    const canCreatePurchase = role === "admin" || permissions?.purchase?.create;
 
     // Data States
     const [lowStock, setLowStock] = useState([]);
@@ -70,15 +77,19 @@ function Inventory() {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const sRes = await API.get("inventory/summary/");
-            setSummary(sRes.data);
 
-            if (activeTab === "alerts") {
-                const lRes = await API.get("inventory/alerts/low-stock/");
-                setLowStock(lRes.data);
-                const eRes = await API.get("inventory/alerts/expiry/");
-                setExpiryAlerts(eRes.data);
-            } else if (activeTab === "movement") {
+            // Always fetch summary + alerts (needed for both Overview panels and Alerts tab)
+            const [sRes, lRes, eRes] = await Promise.all([
+                API.get("inventory/summary/"),
+                API.get("inventory/alerts/low-stock/"),
+                API.get("inventory/alerts/expiry/"),
+            ]);
+            setSummary(sRes.data);
+            setLowStock(lRes.data);
+            setExpiryAlerts(eRes.data);
+
+            // Tab-specific data
+            if (activeTab === "movement") {
                 const query = `?medicine=${moveFilter.medicine}&type=${moveFilter.type}`;
                 const mRes = await API.get(`inventory/movements/${query}`);
                 setMovements(mRes.data);
@@ -136,17 +147,26 @@ function Inventory() {
                     </div>
                     <table className="table mini-table">
                         <thead>
-                            <tr><th>Medicine</th><th>Current</th><th>Min.Level</th></tr>
+                            <tr><th>Medicine</th><th>Stock</th><th>Min.Level</th><th>Status</th></tr>
                         </thead>
                         <tbody>
                             {lowStock.slice(0, 5).map(m => (
                                 <tr key={m.id}>
-                                    <td>{m.medicine_name}</td>
-                                    <td style={{ color: '#dc2626', fontWeight: '700' }}>{m.stock_quantity}</td>
+                                    <td style={{ fontWeight: '600' }}>{m.medicine_name}</td>
+                                    <td style={{ color: m.stock_quantity === 0 ? '#dc2626' : '#f59e0b', fontWeight: '800' }}>{m.stock_quantity}</td>
                                     <td>{m.reorder_level}</td>
+                                    <td>
+                                        <span style={{
+                                            padding: '2px 8px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: '800',
+                                            backgroundColor: m.status === 'out_of_stock' ? '#fee2e2' : '#fef3c7',
+                                            color: m.status === 'out_of_stock' ? '#dc2626' : '#d97706'
+                                        }}>
+                                            {m.status === 'out_of_stock' ? 'OUT OF STOCK' : 'LOW STOCK'}
+                                        </span>
+                                    </td>
                                 </tr>
                             ))}
-                            {lowStock.length === 0 && <tr><td colSpan="3" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Stock levels healthy! ✅</td></tr>}
+                            {lowStock.length === 0 && <tr><td colSpan="4" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Stock levels healthy! ✅</td></tr>}
                         </tbody>
                     </table>
                 </div>
@@ -196,17 +216,29 @@ function Inventory() {
             {subTab === "low-stock" ? (
                 <table className="table">
                     <thead>
-                        <tr><th>Medicine</th><th>Current Stock</th><th>Min. Reorder Level</th><th>Diff.</th><th>Suggested Qty.</th><th>Actions</th></tr>
+                        <tr><th>Medicine</th><th>Current Stock</th><th>Min. Reorder Level</th><th>Status</th><th>Suggested Qty.</th><th>Actions</th></tr>
                     </thead>
                     <tbody>
                         {lowStock.map(m => (
                             <tr key={m.id}>
                                 <td style={{ fontWeight: '700' }}>{m.medicine_name}</td>
-                                <td style={{ color: '#dc2626', fontWeight: '800' }}>{m.stock_quantity}</td>
-                                <td style={{ color: '#f59e0b' }}>{m.reorder_level}</td>
-                                <td><span style={{ backgroundColor: '#fee2e2', color: '#dc2626', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>{m.difference}</span></td>
+                                <td style={{ color: m.stock_quantity === 0 ? '#dc2626' : '#f59e0b', fontWeight: '800' }}>{m.stock_quantity}</td>
+                                <td style={{ color: '#64748b' }}>{m.reorder_level}</td>
+                                <td>
+                                    <span style={{
+                                        backgroundColor: m.status === 'out_of_stock' ? '#fee2e2' : '#fef3c7',
+                                        color: m.status === 'out_of_stock' ? '#dc2626' : '#d97706',
+                                        padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '800'
+                                    }}>
+                                        {m.status === 'out_of_stock' ? '🔴 Out of Stock' : '🟡 Low Stock'}
+                                    </span>
+                                </td>
                                 <td style={{ fontWeight: '600' }}>{m.suggested_qty}</td>
-                                <td><button className="btn-primary btn-sm" style={{ borderSize: '1px', borderRadius: '8px' }}>Create PO</button></td>
+                                <td>
+                                    {canCreatePurchase && (
+                                        <button className="btn-primary btn-sm" style={{ borderSize: '1px', borderRadius: '8px' }} onClick={() => navigate("/purchase")}>Create PO</button>
+                                    )}
+                                </td>
                             </tr>
                         ))}
                     </tbody>
@@ -371,7 +403,9 @@ function Inventory() {
                 <div style={{ display: 'flex', gap: '10px' }}>
                     <button className={`nav-tab ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}><Layers size={18} /> Overview</button>
                     <button className={`nav-tab ${activeTab === 'alerts' ? 'active' : ''}`} onClick={() => setActiveTab('alerts')}><AlertTriangle size={18} /> Alerts</button>
-                    <button className={`nav-tab ${activeTab === 'adjustment' ? 'active' : ''}`} onClick={() => setActiveTab('adjustment')}><ArrowRightLeft size={18} /> Adjustments</button>
+                    {canUpdateStock && (
+                        <button className={`nav-tab ${activeTab === 'adjustment' ? 'active' : ''}`} onClick={() => setActiveTab('adjustment')}><ArrowRightLeft size={18} /> Adjustments</button>
+                    )}
                     <button className={`nav-tab ${activeTab === 'movement' ? 'active' : ''}`} onClick={() => setActiveTab('movement')}><FileText size={18} /> Movements</button>
                 </div>
             </div>

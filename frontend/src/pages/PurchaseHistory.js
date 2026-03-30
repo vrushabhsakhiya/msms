@@ -8,7 +8,9 @@ import {
   FileText,
   Eye,
   X,
-  PackageCheck
+  PackageCheck,
+  Download,
+  Printer
 } from "lucide-react";
 
 function PurchaseHistory() {
@@ -35,6 +37,28 @@ function PurchaseHistory() {
     }
   };
 
+  const downloadCSV = () => {
+    if (purchases.length === 0) return;
+
+    let csv = "Purchase History Report\n";
+    // Sync headers with Table UI
+    csv += "PO Code,Invoice Number,Date,Supplier,Unique Items,Total Units,Net Amount(₹),Base Amount(₹),GST Amount(₹),Status\n";
+
+    filteredPurchases.forEach(p => {
+      csv += `"${p.purchase_code}","${p.invoice_number}","${p.invoice_date}","${p.supplier_name}",${p.total_items},${p.total_quantity},${p.net_amount},${p.gross_amount},${p.gst_amount},"${p.payment_status}"\n`;
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Purchase_History_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const filteredPurchases = purchases.filter(p => {
     const matchSearch = (
       p.purchase_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -58,8 +82,16 @@ function PurchaseHistory() {
       subtitle="Complete ledger of all past procurements and inventory receipts"
       icon={<ShoppingCart size={24} />}
     >
+      <div className="no-print" style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginBottom: "1.5rem" }}>
+        <button className="btn-secondary" onClick={() => window.print()}>
+          <Printer size={18} /> Print PDF
+        </button>
+        <button className="btn-primary" style={{ backgroundColor: "#065f46" }} onClick={downloadCSV}>
+          <Download size={18} /> Export CSV
+        </button>
+      </div>
       {/* Filters */}
-      <div className="card" style={{ padding: "1rem", marginBottom: "1.5rem", display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+      <div className="card no-print" style={{ padding: "1rem", marginBottom: "1.5rem", display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1, minWidth: "250px" }}>
           <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
           <input
@@ -99,7 +131,55 @@ function PurchaseHistory() {
       </div>
 
       {/* Main Table */}
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+      <div className="card print-content" style={{ padding: 0, overflow: "hidden" }}>
+        <style>{`
+          @media print {
+            /* Hide EVERYTHING except the table area */
+            .sidebar, .navbar, .no-print, .layout-header, header, footer, 
+            aside, nav, .user-profile, .btn-secondary, .btn-primary,
+            [class*="header"], [class*="sidebar"], [class*="navbar"] { 
+              display: none !important; 
+            }
+            
+            /* Remove margins and expand to full width */
+            .layout-content, .main-content, .table-container, .card.print-content, .layout-main {
+              margin: 0 !important;
+              padding: 0 !important;
+              width: 100% !important;
+              max-width: 100% !important;
+              overflow: visible !important;
+              height: auto !important;
+              background-color: white !important;
+              position: static !important;
+            }
+            
+            /* Clean up table for PDF */
+            table {
+              width: 100% !important;
+              border-collapse: collapse !important;
+              table-layout: fixed !important;
+            }
+            
+            /* Hide Actions column in Print (Column 5) */
+            th:nth-child(5), td:nth-child(5) {
+              display: none !important;
+            }
+            
+            th, td {
+              border: 1px solid #cbd5e1 !important;
+              padding: 12px 8px !important;
+              font-size: 11px !important;
+              word-wrap: break-word !important;
+              overflow: visible !important;
+            }
+            
+            body {
+              background: white !important;
+              min-width: 100% !important;
+              margin: 0 !important;
+            }
+          }
+        `}</style>
         <div className="table-container">
           <table className="table">
             <thead>
@@ -108,7 +188,6 @@ function PurchaseHistory() {
                 <th>Vendor Info</th>
                 <th>Items & Quantities</th>
                 <th>Financials</th>
-                <th>Payment Status</th>
                 <th style={{ textAlign: "center" }}>Actions</th>
               </tr>
             </thead>
@@ -145,30 +224,43 @@ function PurchaseHistory() {
                       <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{p.total_quantity} Total Units Stored</div>
                     </td>
                     <td>
-                      <div style={{ fontWeight: "800", fontSize: "1rem" }}>₹{parseFloat(p.net_amount).toFixed(2)}</div>
+                      <div style={{ fontWeight: "800", fontSize: "1rem" }}>₹{Number.parseFloat(p.net_amount).toFixed(2)}</div>
                       <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-                        Base: ₹{parseFloat(p.gross_amount).toFixed(2)} | GST: ₹{parseFloat(p.gst_amount).toFixed(2)}
+                        Base: ₹{Number.parseFloat(p.gross_amount).toFixed(2)} | GST: ₹{Number.parseFloat(p.gst_amount).toFixed(2)}
                       </div>
                     </td>
-                    <td>
-                      <span style={{
-                        padding: "3px 10px", borderRadius: "20px", fontSize: "0.75rem", fontWeight: "700",
-                        background: p.payment_status === "paid" ? "#dcfce7" : p.payment_status === "partial" ? "#fef3c7" : "#fee2e2",
-                        color: p.payment_status === "paid" ? "#166534" : p.payment_status === "partial" ? "#92400e" : "#991b1b"
-                      }}>
-                        {p.payment_status.toUpperCase()}
-                      </span>
-                    </td>
                     <td style={{ textAlign: "center" }}>
-                      <button
-                        onClick={() => setSelectedPurchase(p)}
-                        style={{
-                          background: "#eff6ff", border: "1px solid #bfdbfe", padding: "6px 10px",
-                          borderRadius: "8px", color: "var(--primary)", cursor: "pointer", display: "inline-flex", gap: "5px", alignItems: "center", fontWeight: "600", fontSize: "0.8rem"
-                        }}
-                      >
-                        <Eye size={16} /> View
-                      </button>
+                      <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+                        <button
+                          onClick={() => setSelectedPurchase(p)}
+                          style={{
+                            background: "#eff6ff", border: "1px solid #bfdbfe", padding: "6px 10px",
+                            borderRadius: "8px", color: "var(--primary)", cursor: "pointer", display: "inline-flex", gap: "5px", alignItems: "center", fontWeight: "600", fontSize: "0.8rem"
+                          }}
+                        >
+                          <Eye size={16} /> View
+                        </button>
+                        {p.payment_status?.toLowerCase() !== "paid" && (
+                          <button
+                            onClick={async () => {
+                              if (window.confirm("Mark this invoice as Paid? This will update your ledger.")) {
+                                try {
+                                  await API.patch(`purchases/update/${p.id}/`, { payment_status: 'paid' });
+                                  fetchPurchases();
+                                } catch (err) {
+                                  alert("Failed to update status");
+                                }
+                              }
+                            }}
+                            style={{
+                              background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "6px 10px",
+                              borderRadius: "8px", color: "#166534", cursor: "pointer", display: "inline-flex", gap: "5px", alignItems: "center", fontWeight: "600", fontSize: "0.8rem"
+                            }}
+                          >
+                            <PackageCheck size={16} /> Mark Paid
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -209,7 +301,7 @@ function PurchaseHistory() {
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedPurchase.items && selectedPurchase.items.map((it, idx) => (
+                    {selectedPurchase?.items?.map((it, idx) => (
                       <tr key={idx}>
                         <td style={{ fontWeight: "600" }}>{it.medicine_name}</td>
                         <td>
@@ -221,11 +313,11 @@ function PurchaseHistory() {
                           {it.free_quantity > 0 && <span style={{ color: "#10b981", fontSize: "0.8rem", marginLeft: "4px" }}>(+{it.free_quantity})</span>}
                         </td>
                         <td style={{ textAlign: "right", fontSize: "0.85rem" }}>
-                          {parseFloat(it.purchase_rate).toFixed(2)}
-                          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>MRP: {parseFloat(it.mrp).toFixed(2)}</div>
+                          {Number.parseFloat(it.purchase_rate).toFixed(2)}
+                          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>MRP: {Number.parseFloat(it.mrp).toFixed(2)}</div>
                         </td>
                         <td style={{ textAlign: "right", fontWeight: "700" }}>
-                          {parseFloat(it.amount).toFixed(2)}
+                          {Number.parseFloat(it.amount).toFixed(2)}
                         </td>
                       </tr>
                     ))}
@@ -233,7 +325,7 @@ function PurchaseHistory() {
 				  <tfoot>
 				    <tr>
 					  <td colSpan="4" style={{textAlign: "right", fontWeight: "700", paddingTop: "1rem"}}>Net Total Amount:</td>
-					  <td style={{textAlign: "right", fontWeight: "900", fontSize: "1.1rem", color: "var(--primary)", paddingTop: "1rem"}}>₹{parseFloat(selectedPurchase.net_amount).toFixed(2)}</td>
+					  <td style={{textAlign: "right", fontWeight: "900", fontSize: "1.1rem", color: "var(--primary)", paddingTop: "1rem"}}>₹{Number.parseFloat(selectedPurchase.net_amount).toFixed(2)}</td>
 					</tr>
 				  </tfoot>
                 </table>

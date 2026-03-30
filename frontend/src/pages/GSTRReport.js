@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
 import Layout from "../components/Layout";
-import { FileText, Download, Printer, Filter, Calendar, BadgePercent, Receipt } from "lucide-react";
+import { Download, Printer, Calendar, BadgePercent, Receipt } from "lucide-react";
 
 function GSTRReport() {
   const [report, setReport] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     start_date: new Date(new Date().setDate(1)).toISOString().split('T')[0], // First of current month
     end_date: new Date().toISOString().split('T')[0]
@@ -13,13 +12,10 @@ function GSTRReport() {
 
   const fetchReport = async () => {
     try {
-      setLoading(true);
       const res = await API.get(`sales/gstr1/?start_date=${filters.start_date}&end_date=${filters.end_date}`);
       setReport(res.data);
     } catch (err) {
       console.error("Error fetching GSTR1", err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -27,9 +23,42 @@ function GSTRReport() {
     fetchReport();
   }, [filters]);
 
+  const exportCSV = () => {
+    if (!report) return;
+
+    let csv = "GSTR-1 Sales Report Breakdown\n";
+    csv += `Period: ${filters.start_date} to ${filters.end_date}\n\n`;
+    
+    // Slab Table Headers
+    csv += "GST Rate,Taxable Amount,CGST,SGST,Total GST,Gross Total\n";
+    
+    // Slab Rows
+    report.slabs.forEach(slab => {
+      csv += `"${slab.gst_rate}","${slab.taxable_value}","${slab.cgst}","${slab.sgst}","${slab.total_gst}","${slab.total_amount}"\n`;
+    });
+
+    // Grand Totals at the bottom
+    csv += "\nGrand Totals\n";
+    csv += `Taxable Value,${report.total.taxable}\n`;
+    csv += `Total Output GST,${report.total.gst}\n`;
+    csv += `Total CGST,${report.total.gst / 2}\n`;
+    csv += `Total SGST,${report.total.gst / 2}\n`;
+    csv += `TOTAL INVOICE VALUE,${report.total.amount}\n`;
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `GSTR1_Report_${filters.start_date}_to_${filters.end_date}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Layout>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
+      <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
         <div>
           <h2 style={{ margin: 0, fontWeight: "800", fontSize: "2rem", display: "flex", alignItems: "center", gap: "10px" }}>
             <Receipt size={32} className="text-primary" /> GSTR-1 Sales Report
@@ -40,14 +69,14 @@ function GSTRReport() {
           <button className="btn-secondary" onClick={() => window.print()}>
             <Printer size={18} /> Print
           </button>
-          <button className="btn-primary" style={{ backgroundColor: "#065f46" }}>
-            <Download size={18} /> Export Excel
+          <button className="btn-primary" style={{ backgroundColor: "#065f46" }} onClick={exportCSV}>
+            <Download size={18} /> Export CSV
           </button>
         </div>
       </div>
 
       {/* Date Filter */}
-      <div className="card" style={{ marginBottom: "2rem", padding: "1.2rem", display: "flex", alignItems: "center", gap: "2rem" }}>
+      <div className="card no-print" style={{ marginBottom: "2rem", padding: "1.2rem", display: "flex", alignItems: "center", gap: "2rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <Calendar size={20} className="text-muted" />
           <input type="date" className="custom-input" value={filters.start_date} onChange={(e) => setFilters({ ...filters, start_date: e.target.value })} />
@@ -57,7 +86,39 @@ function GSTRReport() {
       </div>
 
       {report && (
-        <>
+        <div className="print-area">
+          <style>{`
+            @media print {
+              .no-print, .sidebar, .navbar, .layout-header, header, footer, .btn-primary, .btn-secondary {
+                display: none !important;
+              }
+              .layout-content, .main-content, .print-area {
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+                overflow: visible !important;
+              }
+              .card {
+                border: 1px solid #e2e8f0 !important;
+                box-shadow: none !important;
+                margin-bottom: 1rem !important;
+                overflow: visible !important;
+                height: auto !important;
+              }
+              table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+              }
+              th, td {
+                border: 1px solid #cbd5e1 !important;
+                padding: 8px !important;
+                font-size: 11px !important;
+              }
+              body {
+                background: white !important;
+              }
+            }
+          `}</style>
           {/* GST Summary Hub */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1.5rem", marginBottom: "2rem" }}>
             <div className="card" style={{ backgroundColor: "#f8fafc" }}>
@@ -113,7 +174,7 @@ function GSTRReport() {
               </tfoot>
             </table>
           </div>
-        </>
+          </div>
       )}
     </Layout>
   );
