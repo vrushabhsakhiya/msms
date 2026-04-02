@@ -146,6 +146,6 @@ class LoginOTP(models.Model):
     def is_valid(self):
         from django.utils import timezone
         import datetime
-        # Valid for exactly 3 minutes
-        expiry = self.created_at + datetime.timedelta(minutes=3)
+        # Valid for exactly 5 minutes
+        expiry = self.created_at + datetime.timedelta(minutes=5)
         return not self.is_used and timezone.now() < expiry

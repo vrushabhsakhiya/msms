@@ -67,7 +67,7 @@ function GSTRReport() {
           <p style={{ margin: "5px 0 0 0", color: "#64748b" }}>Government compliant GST sales tax breakdown by slabs</p>
         </div>
         <div style={{ display: "flex", gap: "10px" }}>
-          <button className="btn-secondary" onClick={() => window.print()}>
+          <button className="btn-secondary" onClick={() => globalThis.print()}>
             <Printer size={18} /> Print
           </button>
           <button className="btn-primary" style={{ backgroundColor: "#065f46" }} onClick={exportCSV}>
@@ -152,8 +152,8 @@ function GSTRReport() {
                 </tr>
               </thead>
               <tbody>
-                {report.slabs.map((slab, idx) => (
-                  <tr key={idx}>
+                {report.slabs.map((slab) => (
+                  <tr key={slab.gst_rate}>
                     <td style={{ fontWeight: "800" }}><BadgePercent size={14} style={{ marginRight: "5px" }} /> {slab.gst_rate}</td>
                     <td style={{ textAlign: "right" }}>₹{slab.taxable_value.toLocaleString()}</td>
                     <td style={{ textAlign: "right" }}>₹{slab.cgst.toLocaleString()}</td>

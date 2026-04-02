@@ -91,7 +91,7 @@ function Purchase() {
 
   const addMonths = (date, months) => {
     const d = new Date(date);
-    d.setMonth(d.getMonth() + parseInt(months));
+    d.setMonth(d.getMonth() + Number.parseInt(months, 10));
     return d.toISOString().split("T")[0];
   };
 
@@ -109,14 +109,15 @@ function Purchase() {
       return;
     }
 
-    const amount = currentItem.quantity * currentItem.purchase_rate;
+    const rawAmount = currentItem.quantity * currentItem.purchase_rate;
+    const amount = Math.round(rawAmount * 100) / 100;
     const itemWithAmount = { ...currentItem, amount };
 
     const newItems = [...form.items, itemWithAmount];
-    const totalQty = newItems.reduce((acc, i) => acc + parseInt(i.quantity || 0) + parseInt(i.free_quantity || 0), 0);
-    const gross = newItems.reduce((acc, i) => acc + (parseFloat(i.amount) || 0), 0);
-    const gst = gross * (currentItem.gst_percentage / 100);
-    const net = gross + gst;
+    const totalQty = newItems.reduce((acc, i) => acc + Number.parseInt(i.quantity || 0, 10) + Number.parseInt(i.free_quantity || 0, 10), 0);
+    const gross = Math.round(newItems.reduce((acc, i) => acc + (Number.parseFloat(i.amount) || 0), 0) * 100) / 100;
+    const gst = Math.round(gross * (currentItem.gst_percentage / 100) * 100) / 100;
+    const net = Math.round((gross + gst) * 100) / 100;
 
     setForm({
       ...form,
@@ -146,9 +147,10 @@ function Purchase() {
 
   const removeItem = (index) => {
     const newItems = form.items.filter((_, i) => i !== index);
-    const totalQty = newItems.reduce((acc, i) => acc + parseInt(i.quantity || 0) + parseInt(i.free_quantity || 0), 0);
-    const gross = newItems.reduce((acc, i) => acc + (parseFloat(i.amount) || 0), 0);
-    const gst = gross * 0.12;
+    const totalQty = newItems.reduce((acc, i) => acc + Number.parseInt(i.quantity || 0, 10) + Number.parseInt(i.free_quantity || 0, 10), 0);
+    const gross = Math.round(newItems.reduce((acc, i) => acc + (Number.parseFloat(i.amount) || 0), 0) * 100) / 100;
+    const gst = Math.round(gross * 0.12 * 100) / 100; // Default 12% for cleanup
+    const net = Math.round((gross + gst) * 100) / 100;
 
     setForm({
       ...form,
@@ -157,8 +159,8 @@ function Purchase() {
       total_quantity: totalQty,
       gross_amount: gross,
       gst_amount: gst,
-      net_amount: gross + gst,
-      balance_amount: gross + gst,
+      net_amount: net,
+      balance_amount: net,
     });
   };
 
@@ -233,7 +235,7 @@ function Purchase() {
     link.setAttribute("download", `purchase_order_${form.invoice_number}.csv`);
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove();
   };
 
   return (
@@ -588,8 +590,9 @@ function Purchase() {
           </h3>
           <form onSubmit={addItem}>
             <div className="form-group" style={{ position: "relative", marginBottom: "1rem" }}>
-              <label>Search & Select Medicine</label>
+              <label htmlFor="medicine-search">Search & Select Medicine</label>
               <input
+                id="medicine-search"
                 type="text"
                 className="custom-input"
                 placeholder="Start typing medicine name..."
@@ -642,17 +645,21 @@ function Purchase() {
             </div>
             <div className="grid-cols-2">
               <div className="form-group">
-                <label>
-                  {["Tablet", "Capsule", "Lozenges"].includes(currentItem.category) ? "Purchase (Strips)" :
-                   ["Syrup", "Suspension", "Solution", "Elixir", "Drops"].includes(currentItem.category) ? "Purchase (Bottles)" :
-                   ["Injection", "IV (Intravenous)", "IM (Intramuscular)", "SC (Subcutaneous)", "Infusion"].includes(currentItem.category) ? "Purchase (Vials/Ampoules)" :
-                   ["Cream", "Ointment", "Gel", "Paste", "Lotion"].includes(currentItem.category) ? "Purchase (Tubes)" :
-                   ["Powder", "Granules"].includes(currentItem.category) ? "Purchase (Sachets/Units)" :
-                   ["Inhaler", "Nebulizer solution", "Aerosol spray"].includes(currentItem.category) ? "Purchase (Canisters)" :
-                   ["Suppositories", "Pessaries", "Enemas"].includes(currentItem.category) ? "Purchase (Packs/Units)" :
-                   "Purchased Qty"}
+                <label htmlFor="purchased-qty">
+                  {(() => {
+                    const cat = currentItem.category;
+                    if (["Tablet", "Capsule", "Lozenges"].includes(cat)) return "Purchase (Strips)";
+                    if (["Syrup", "Suspension", "Solution", "Elixir", "Drops"].includes(cat)) return "Purchase (Bottles)";
+                    if (["Injection", "IV (Intravenous)", "IM (Intramuscular)", "SC (Subcutaneous)", "Infusion"].includes(cat)) return "Purchase (Vials/Ampoules)";
+                    if (["Cream", "Ointment", "Gel", "Paste", "Lotion"].includes(cat)) return "Purchase (Tubes)";
+                    if (["Powder", "Granules"].includes(cat)) return "Purchase (Sachets/Units)";
+                    if (["Inhaler", "Nebulizer solution", "Aerosol spray"].includes(cat)) return "Purchase (Canisters)";
+                    if (["Suppositories", "Pessaries", "Enemas"].includes(cat)) return "Purchase (Packs/Units)";
+                    return "Purchased Qty";
+                  })()}
                 </label>
                 <input
+                  id="purchased-qty"
                   required
                   type="number"
                   className="custom-input"
@@ -664,10 +671,11 @@ function Purchase() {
                 />
               </div>
               <div className="form-group">
-                <label>
+                <label htmlFor="free-qty">
                   Free / Bonus Qty
                 </label>
                 <input
+                  id="free-qty"
                   type="number"
                   className="custom-input"
                   min="0"
@@ -678,15 +686,19 @@ function Purchase() {
                 />
               </div>
               <div className="form-group" style={{ gridColumn: "span 2" }}>
-                <label>
-                  {["Tablet", "Capsule", "Lozenges"].includes(currentItem.category) ? "Rate per Strip (₹)" :
-                   ["Syrup", "Suspension", "Solution", "Elixir", "Drops"].includes(currentItem.category) ? "Unit Rate/Bottle (₹)" :
-                   ["Injection", "IV (Intravenous)", "IM (Intramuscular)", "SC (Subcutaneous)", "Infusion"].includes(currentItem.category) ? "Rate per Vial/Ampoule (₹)" :
-                   ["Cream", "Ointment", "Gel", "Paste", "Lotion"].includes(currentItem.category) ? "Rate per Tube (₹)" :
-                   ["Inhaler", "Nebulizer solution", "Aerosol spray"].includes(currentItem.category) ? "Rate per Canister (₹)" :
-                   "Unit Cost (₹)"}
+                <label htmlFor="unit-cost">
+                  {(() => {
+                    const cat = currentItem.category;
+                    if (["Tablet", "Capsule", "Lozenges"].includes(cat)) return "Rate per Strip (₹)";
+                    if (["Syrup", "Suspension", "Solution", "Elixir", "Drops"].includes(cat)) return "Unit Rate/Bottle (₹)";
+                    if (["Injection", "IV (Intravenous)", "IM (Intramuscular)", "SC (Subcutaneous)", "Infusion"].includes(cat)) return "Rate per Vial/Ampoule (₹)";
+                    if (["Cream", "Ointment", "Gel", "Paste", "Lotion"].includes(cat)) return "Rate per Tube (₹)";
+                    if (["Inhaler", "Nebulizer solution", "Aerosol spray"].includes(cat)) return "Rate per Canister (₹)";
+                    return "Unit Cost (₹)";
+                  })()}
                 </label>
                 <input
+                  id="unit-cost"
                   required
                   type="number"
                   className="custom-input"
@@ -702,8 +714,9 @@ function Purchase() {
             </div>
             <div className="grid-cols-2">
               <div className="form-group">
-                <label>Batch Number</label>
+                <label htmlFor="batch-number">Batch Number</label>
                 <input
+                  id="batch_number"
                   required
                   className="custom-input"
                   placeholder="BT-2026"
@@ -717,8 +730,9 @@ function Purchase() {
                 />
               </div>
               <div className="form-group">
-                <label>MRP (Marked)</label>
+                <label htmlFor="marked-mrp">MRP (Marked)</label>
                 <input
+                  id="marked-mrp"
                   required
                   type="number"
                   className="custom-input"
@@ -731,8 +745,9 @@ function Purchase() {
             </div>
             <div className="grid-cols-2" style={{ gap: "1.5rem" }}>
               <div className="form-group">
-                <label>Expiration Date</label>
+                <label htmlFor="expiry-date">Expiration Date</label>
                 <input
+                  id="expiry-date"
                   required
                   type="date"
                   className="custom-input"
@@ -755,8 +770,9 @@ function Purchase() {
                 )}
               </div>
               <div className="form-group">
-                <label>Validity (In Months)</label>
+                <label htmlFor="validity-months">Validity (In Months)</label>
                 <input
+                  id="validity-months"
                   type="number"
                   className="custom-input"
                   placeholder="e.g. 24"

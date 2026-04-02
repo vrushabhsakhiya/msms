@@ -24,13 +24,13 @@ class Purchase(models.Model):
     total_items = models.IntegerField()
     total_quantity = models.IntegerField()
 
-    gross_amount = models.DecimalField(max_digits=12, decimal_places=2)
-    discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    gst_amount = models.DecimalField(max_digits=12, decimal_places=2)
-    net_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    gross_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    discount_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    gst_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    net_amount = models.DecimalField(max_digits=15, decimal_places=2)
 
-    paid_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    balance_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    paid_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    balance_amount = models.DecimalField(max_digits=15, decimal_places=2)
 
     payment_status = models.CharField(max_length=20)  # paid / pending / partial
     payment_mode = models.CharField(max_length=50, blank=True, null=True)
@@ -69,15 +69,15 @@ class PurchaseItem(models.Model):
     quantity = models.IntegerField()
     free_quantity = models.IntegerField(default=0)
 
-    purchase_rate = models.DecimalField(max_digits=12, decimal_places=2)
-    mrp = models.DecimalField(max_digits=12, decimal_places=2)
+    purchase_rate = models.DecimalField(max_digits=15, decimal_places=2)
+    mrp = models.DecimalField(max_digits=15, decimal_places=2)
 
     discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-    discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
     gst_percentage = models.DecimalField(max_digits=5, decimal_places=2)
-    gst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    gst_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
 
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
 
     def __str__(self):
         return f"{self.medicine.medicine_name} - {self.batch_number}"

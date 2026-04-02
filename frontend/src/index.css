@@ -155,7 +155,7 @@ body {
 }
 
 .nav-link:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: #334155;
   color: white;
 }
 
@@ -762,4 +762,17 @@ input:checked+.slider:before {
 
 .slider.round:before {
   border-radius: 50%;
+}
+
+/* Accessibility: Screen Reader Only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }

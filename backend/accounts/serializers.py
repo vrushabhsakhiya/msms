@@ -243,14 +243,17 @@ class VerifyLoginSerializer(serializers.Serializer):
 
     def _validate_session_limit(self, user):
         from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
-        if OutstandingToken.objects.filter(user=user, expires_at__gt=timezone.now()).count() >= 10:
-             raise serializers.ValidationError("Too many active sessions.")
+        from django.utils import timezone
+        active_tokens = OutstandingToken.objects.filter(user=user, expires_at__gt=timezone.now()).order_by('created_at')
+        if active_tokens.count() >= 20:
+             # Automatically logout the oldest session instead of blocking the user
+             active_tokens.first().delete()
 
     def _get_active_otp(self, user):
         return LoginOTP.objects.filter(user=user, is_used=False).order_by('-created_at').first()
 
     def _validate_otp_match(self, otp_record, otp, user):
-        if otp_record.otp != otp:
+        if otp_record.otp.upper() != otp.strip().upper():
             otp_record.failed_attempts += 1
             if otp_record.failed_attempts >= 5:
                 otp_record.is_used = True

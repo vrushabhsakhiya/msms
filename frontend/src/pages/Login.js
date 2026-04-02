@@ -69,7 +69,9 @@ function Login() {
       toast.success("Login Successful!");
       setTimeout(() => navigate("/dashboard"), 800);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Verification failed.");
+      const data = err.response?.data || {};
+      const message = data.error || data.non_field_errors?.[0] || data.otp?.[0] || data.email?.[0] || "Verification failed.";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -84,6 +86,7 @@ function Login() {
       setOtp("");
       toast.success("Reset OTP sent if account exists.");
     } catch (err) {
+      console.error("Recovery error:", err);
       toast.error("Process failed. Try again.");
     } finally {
       setLoading(false);
@@ -142,7 +145,7 @@ function Login() {
               <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} /> Remember
               </label>
-              <span style={{ color: "var(--primary)", cursor: "pointer", fontWeight: "600" }} onClick={() => setStep(3)}>Forgot Password?</span>
+              <button type="button" className="btn-link" style={{ color: "var(--primary)", cursor: "pointer", fontWeight: "600", border: "none", background: "none", fontSize: "0.85rem", padding: 0 }} onClick={() => setStep(3)}>Forgot Password?</button>
             </div>
             <button onClick={loginUser} className="btn-primary" style={{ width: "100%" }} disabled={loading}>
               {loading ? "Verifying..." : "Sign In"}
@@ -155,7 +158,7 @@ function Login() {
             <p style={{ textAlign: "center", fontSize: "0.9rem", color: "#64748b" }}>Login security code sent to {email}</p>
             <div className="form-group" style={{ marginBottom: "2rem" }}>
               <label><ShieldCheck size={16} /> Enter 8-character OTP</label>
-              <input type="text" value={otp} onChange={(e) => setOtp(e.target.value)} onKeyDown={handleKeyDown} className="custom-input" style={{ textAlign: "center", letterSpacing: "3px", fontWeight: "800" }} autoFocus />
+              <input type="text" value={otp} onChange={(e) => setOtp(e.target.value.toUpperCase().trim())} onKeyDown={handleKeyDown} className="custom-input" style={{ textAlign: "center", letterSpacing: "3px", fontWeight: "800" }} autoFocus />
             </div>
             <button onClick={verifyOTP} className="btn-primary" style={{ width: "100%" }} disabled={loading}>Verify & Continue</button>
             <button onClick={() => setStep(1)} className="btn-link" style={{ width: "100%", marginTop: "1rem" }}>Back to Login</button>
@@ -178,12 +181,12 @@ function Login() {
           <>
             <p style={{ fontSize: "0.9rem", marginBottom: "1.5rem" }}>Recovery code sent. Create a new secure password.</p>
             <div className="form-group" style={{ marginBottom: "1rem" }}>
-              <label>6-Digit Reset Code</label>
-              <input type="text" value={otp} onChange={(e) => setOtp(e.target.value)} onKeyDown={handleKeyDown} className="custom-input" />
+              <label htmlFor="reset-code">6-Digit Reset Code</label>
+              <input id="reset-code" type="text" value={otp} onChange={(e) => setOtp(e.target.value.toUpperCase().trim())} onKeyDown={handleKeyDown} className="custom-input" />
             </div>
             <div className="form-group" style={{ marginBottom: "1.5rem" }}>
-              <label>New Password</label>
-              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} onKeyDown={handleKeyDown} className="custom-input" />
+              <label htmlFor="new-password">New Password</label>
+              <input id="new-password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} onKeyDown={handleKeyDown} className="custom-input" />
             </div>
             <button onClick={resetPassword} className="btn-primary" style={{ width: "100%" }} disabled={loading}>Reset Password</button>
             <button onClick={() => setStep(3)} className="btn-link" style={{ width: "100%", marginTop: "1rem" }}>Resend Code</button>

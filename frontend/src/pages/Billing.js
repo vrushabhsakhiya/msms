@@ -116,8 +116,8 @@ function Billing() {
         setSelectedMedicine(null);
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    globalThis.addEventListener("keydown", handleKeyDown);
+    return () => globalThis.removeEventListener("keydown", handleKeyDown);
   }, [createSale]); // Added dependencies for shortcuts to work with latest state
 
   // Debounced search trigger: Only fires 300ms after user stops typing
@@ -205,13 +205,14 @@ function Billing() {
     try {
       const res = await API.get(API_ENDPOINTS.inventory.batches(med.id));
       setBatches(res.data);
-      if (res.data.results && res.data.results.length === 0) {
+      if (res.data?.results?.length === 0) {
         toast.error("No stock available for this medicine!");
         setSelectedMedicine(null);
       } else {
-          setBatches(res.data.results || res.data); // Support both paginated and flat
+          setBatches(res.data?.results || res.data); // Support both paginated and flat
       }
     } catch (err) {
+      console.error("Error fetching batches", err);
       toast.error("Error fetching batches");
     }
   };
@@ -272,14 +273,14 @@ function Billing() {
         if (item.id === tempId) {
           let newValue = value;
           if (field === "quantity") {
-            newValue = parseInt(value) || 0;
+            newValue = Number.parseInt(value, 10) || 0;
             if (newValue > item.available_stock) {
               toast.error(`Only ${item.available_stock} items available`);
               newValue = item.available_stock;
             }
           }
           if (field === "discount_percent") {
-            newValue = parseFloat(value) || 0;
+            newValue = Number.parseFloat(value) || 0;
             if (newValue > 100) newValue = 100;
           }
           return { ...item, [field]: newValue };
@@ -317,13 +318,13 @@ function Billing() {
 
     setBill((prev) => ({
       ...prev,
-      gross_amount: parseFloat(grossTotal.toFixed(2)),
-      discount_amount: parseFloat(discTotal.toFixed(2)),
-      taxable_amount: parseFloat(taxableTotal.toFixed(2)),
-      gst_amount: parseFloat(gstTotal.toFixed(2)),
-      cgst_amount: parseFloat((gstTotal / 2).toFixed(2)),
-      sgst_amount: parseFloat((gstTotal / 2).toFixed(2)),
-      round_off: parseFloat(roundOffVal.toFixed(2)),
+      gross_amount: Number.parseFloat(grossTotal.toFixed(2)),
+      discount_amount: Number.parseFloat(discTotal.toFixed(2)),
+      taxable_amount: Number.parseFloat(taxableTotal.toFixed(2)),
+      gst_amount: Number.parseFloat(gstTotal.toFixed(2)),
+      cgst_amount: Number.parseFloat((gstTotal / 2).toFixed(2)),
+      sgst_amount: Number.parseFloat((gstTotal / 2).toFixed(2)),
+      round_off: Number.parseFloat(roundOffVal.toFixed(2)),
       net_amount: roundedNet,
       total_items: billItems.length,
       total_quantity: billItems.reduce((acc, item) => acc + item.quantity, 0),
@@ -334,7 +335,7 @@ function Billing() {
   }, [billItems]);
 
   const clearBill = () => {
-    if (window.confirm("Are you sure you want to clear the entire bill?")) {
+    if (globalThis.confirm("Are you sure you want to clear the entire bill?")) {
       setBillItems([]);
     }
   };
@@ -357,9 +358,9 @@ function Billing() {
             <span className="shortcut-badge">F8: Draft</span>
             <span className="shortcut-badge">F9: Print</span>
             <div style={{ marginLeft: "10px", display: "flex", alignItems: "center", gap: "8px", background: "white", padding: "2px 10px", borderRadius: "20px", border: "1px solid var(--border)", fontSize: "0.75rem", fontWeight: "700" }}>
-              Quick Scan:
-              <label className="switch">
-                <input type="checkbox" checked={quickScan} onChange={(e) => setQuickScan(e.target.checked)} />
+              <span id="quick-scan-label">Quick Scan:</span>
+              <label className="switch" htmlFor="quick-scan-toggle" aria-labelledby="quick-scan-label">
+                <input id="quick-scan-toggle" type="checkbox" checked={quickScan} onChange={(e) => setQuickScan(e.target.checked)} />
                 <span className="slider round"></span>
               </label>
             </div>
@@ -388,9 +389,11 @@ function Billing() {
                 {searchResults.length > 0 && (
                   <div className="search-results-dropdown">
                     {searchResults.map((m) => (
-                      <div
+                      <button
                         key={m.id}
+                        type="button"
                         className="search-item"
+                        style={{ width: "100%", textAlign: "left", background: "none", border: "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}
                         onClick={() => showBatches(m)}
                       >
                         <div>
@@ -403,7 +406,7 @@ function Billing() {
                           </span>
                           <div className="info-text">Rack: {m.rack_number || 'N/A'}</div>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -433,8 +436,18 @@ function Billing() {
                 backdropFilter: "blur(4px)",
                 animation: "fadeIn 0.2s ease"
               }}
-              onClick={() => setSelectedMedicine(null)}
             >
+              <button 
+                type="button"
+                aria-label="Close modal"
+                style={{ 
+                  position: "absolute", 
+                  top: 0, left: 0, right: 0, bottom: 0, 
+                  background: "none", border: "none", cursor: "default", 
+                  width: "100%", height: "100%" 
+                }}
+                onClick={() => setSelectedMedicine(null)}
+              />
               <div 
                 className="card" 
                 style={{ 
@@ -444,20 +457,21 @@ function Billing() {
                   boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
                   border: "none",
                   padding: 0,
-                  overflow: "hidden"
+                  overflow: "hidden",
+                  position: "relative",
+                  zIndex: 1
                 }}
-                onClick={(e) => e.stopPropagation()}
               >
                 {/* Modal Header */}
-                <div style={{ backgroundColor: "var(--primary)", padding: "1.25rem", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <header style={{ backgroundColor: "var(--primary)", padding: "1.25rem", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: "800" }}>{selectedMedicine.medicine_name}</h3>
+                    <h3 id="batch-modal-title" style={{ margin: 0, fontSize: "1.2rem", fontWeight: "800" }}>{selectedMedicine.medicine_name}</h3>
                     <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", opacity: 0.8 }}>{selectedMedicine.generic_name} | {selectedMedicine.company}</p>
                   </div>
                   <button onClick={() => setSelectedMedicine(null)} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", borderRadius: "8px", padding: "8px", cursor: "pointer", display: "flex", alignItems: "center" }}>
                     <X size={20} />
                   </button>
-                </div>
+                </header>
 
                 <div style={{ padding: "1.5rem" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem", alignItems: "center" }}>
@@ -481,13 +495,20 @@ function Billing() {
                           <tr key={b.id}>
                             <td style={{ fontWeight: "700" }}>{b.batch_number}</td>
                             <td>
-                              <span style={{ 
-                                color: new Date(b.expiry_date) < new Date() ? 'var(--danger)' : 
-                                       new Date(b.expiry_date) < new Date(new Date().setMonth(new Date().getMonth() + 6)) ? 'var(--warning)' : 'inherit',
-                                fontWeight: "600"
-                              }}>
-                                {b.expiry_date}
-                              </span>
+                              {(() => {
+                                const expiryDate = new Date(b.expiry_date);
+                                const now = new Date();
+                                const sixMonthsFromNow = new Date(new Date().setMonth(now.getMonth() + 6));
+                                let color = 'inherit';
+                                if (expiryDate < now) color = 'var(--danger)';
+                                else if (expiryDate < sixMonthsFromNow) color = 'var(--warning)';
+                                
+                                return (
+                                  <span style={{ color, fontWeight: "600" }}>
+                                    {b.expiry_date}
+                                  </span>
+                                );
+                              })()}
                             </td>
                             <td style={{ fontWeight: "800", color: "var(--primary)" }}>₹{b.mrp}</td>
                             <td>
@@ -496,13 +517,17 @@ function Billing() {
                               </span>
                             </td>
                             <td>
-                              <button
+                             <button
                                 className="btn-primary"
                                 style={{ padding: "6px 16px", borderRadius: "8px" }}
                                 onClick={() => selectBatch(b)}
                                 disabled={b.quantity <= 0 || new Date(b.expiry_date) < new Date()}
                               >
-                                {b.quantity <= 0 ? "Out of Stock" : new Date(b.expiry_date) < new Date() ? "Expired" : "Add to Bill"}
+                                {(() => {
+                                  if (b.quantity <= 0) return "Out of Stock";
+                                  if (new Date(b.expiry_date) < new Date()) return "Expired";
+                                  return "Add to Bill";
+                                })()}
                               </button>
                             </td>
                           </tr>
@@ -608,9 +633,9 @@ function Billing() {
             </h4>
 
             <div className="form-group" style={{ marginBottom: "10px" }}>
-              <label>Customer Mobile</label>
+              <label htmlFor="customer-mobile">Customer Mobile</label>
               <input
-                id="customer-search"
+                id="customer-mobile"
                 type="text"
                 className="custom-input"
                 placeholder="Enter Mobile Number..."
@@ -621,7 +646,7 @@ function Billing() {
                   if (val.length === 10) {
                     try {
                       const res = await API.get(API_ENDPOINTS.customers.search({ mobile: val }));
-                      if (res.data && res.data.id) {
+                      if (res.data?.id) {
                         setBill(prev => ({
                           ...prev,
                           customer_name: res.data.customer_name,
@@ -636,6 +661,7 @@ function Billing() {
                         setBill(prev => ({ ...prev, _customerInfo: null, isNewMatch: val.length === 10 }));
                       }
                     } catch (err) {
+                      console.error("Customer search error", err);
                       setBill(prev => ({ ...prev, _customerInfo: null, isNewMatch: val.length === 10 }));
                     }
                   } else if (val.length > 0) {
@@ -667,8 +693,9 @@ function Billing() {
 
             <div className="grid-cols-2">
               <div className="form-group">
-                <label>Customer Name</label>
+                <label htmlFor="customer-name">Customer Name</label>
                 <input
+                  id="customer-name"
                   type="text"
                   list="customer-names"
                   className="custom-input"
@@ -711,8 +738,9 @@ function Billing() {
                 </datalist>
               </div>
               <div className="form-group">
-                <label>Doctor Name</label>
+                <label htmlFor="doctor-name">Doctor Name</label>
                 <input
+                  id="doctor-name"
                   type="text"
                   className="custom-input"
                   value={bill.doctor_name}
@@ -762,8 +790,9 @@ function Billing() {
             </div>
 
             <div className="form-group" style={{ marginTop: "1rem" }}>
-              <label>Payment Mode</label>
+              <label htmlFor="payment-mode">Payment Mode</label>
               <select
+                id="payment-mode"
                 className="custom-input"
                 value={bill.payment_mode}
                 onChange={(e) => setBill({ ...bill, payment_mode: e.target.value })}
@@ -777,8 +806,9 @@ function Billing() {
 
             <div style={{ marginTop: "10px" }}>
               <div className="form-group">
-                <label>Total Amount</label>
+                <label htmlFor="total-amount-display">Total Amount</label>
                 <input
+                  id="total-amount-display"
                   type="text"
                   className="custom-input"
                   style={{ fontWeight: 700, fontSize: "1rem", backgroundColor: "#f0fdf4", color: "#16a34a" }}

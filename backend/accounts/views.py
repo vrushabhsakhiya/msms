@@ -115,8 +115,6 @@ def resend_login_otp(request):
         # Prevent Account Enumeration Reconnaissance
         return Response({"message": "If that account exists, a fresh OTP has been sent."})
 
-    complex_otp = generate_secure_otp()
-
     LoginOTP.objects.filter(user=user, is_used=False).update(is_used=True)
     LoginOTP.objects.create(user=user, otp=complex_otp)
     logger.info(f"Resent 2FA OTP for {user.email}")
@@ -315,7 +313,7 @@ def reset_password(request):
         if not otp_record.is_valid():
              raise serializers.ValidationError("OTP expired.")
 
-        if otp_record.otp == otp:
+        if otp_record.otp.upper() == otp.strip().upper():
             user.set_password(new_password)
             user.save()
             otp_record.is_used = True

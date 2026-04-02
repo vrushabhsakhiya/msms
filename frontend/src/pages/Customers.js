@@ -79,6 +79,7 @@ function Customers() {
       fetchCustomers();
       setShowForm(false);
     } catch (err) {
+      console.error("Error updating customer", err);
       alert("Error updating customer profile ❌");
     }
   };
@@ -148,16 +149,22 @@ function Customers() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan="6" style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>Loading records...</td>
-                  </tr>
-                ) : filteredCustomers.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>No customers found.</td>
-                  </tr>
-                ) : (
-                  filteredCustomers.map((cust, idx) => (
+                {(() => {
+                  if (loading) {
+                    return (
+                      <tr>
+                        <td colSpan="6" style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>Loading records...</td>
+                      </tr>
+                    );
+                  }
+                  if (filteredCustomers.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan="6" style={{ textAlign: "center", padding: "3rem", color: "#64748b" }}>No customers found.</td>
+                      </tr>
+                    );
+                  }
+                  return filteredCustomers.map((cust, idx) => (
                     <tr key={cust.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                       <td style={tdStyle}>{idx + 1}</td>
                       <td style={tdStyle}>
@@ -165,7 +172,7 @@ function Customers() {
                         <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{cust.customer_code}</div>
                       </td>
                       <td style={tdStyle}>{cust.mobile}</td>
-                      <td style={{ ...tdStyle, color: "#10b981", fontWeight: "700" }}>₹{parseFloat(cust.total_purchases || 0).toLocaleString()}</td>
+                      <td style={{ ...tdStyle, color: "#10b981", fontWeight: "700" }}>₹{Number.parseFloat(cust.total_purchases || 0).toLocaleString()}</td>
                       <td style={tdStyle}>
                         <span style={{ backgroundColor: "#eff6ff", color: "#3b82f6", padding: "2px 8px", borderRadius: "6px", fontSize: "0.8rem", fontWeight: "600" }}>
                           {cust.total_bills || 0}
@@ -190,8 +197,8 @@ function Customers() {
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
+                  ));
+                })()}
               </tbody>
             </table>
           </div>
@@ -209,24 +216,24 @@ function Customers() {
               <form onSubmit={saveCustomer}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   <div className="form-group">
-                    <label>Customer Name</label>
-                    <input className="custom-input" value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} required />
+                    <label htmlFor="customer-name">Customer Name</label>
+                    <input id="customer-name" className="custom-input" value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} required />
                   </div>
                   <div className="form-group">
-                    <label>Mobile number</label>
-                    <input className="custom-input" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} required />
+                    <label htmlFor="customer-mobile">Mobile number</label>
+                    <input id="customer-mobile" className="custom-input" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} required />
                   </div>
                   <div className="form-group">
-                    <label>City</label>
-                    <input className="custom-input" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+                    <label htmlFor="customer-city">City</label>
+                    <input id="customer-city" className="custom-input" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
                   </div>
                   <div className="form-group">
-                    <label>Address</label>
-                    <textarea className="custom-input" value={form.address_line_1} onChange={(e) => setForm({ ...form, address_line_1: e.target.value })} rows="2" />
+                    <label htmlFor="customer-address">Address</label>
+                    <textarea id="customer-address" className="custom-input" value={form.address_line_1} onChange={(e) => setForm({ ...form, address_line_1: e.target.value })} rows="2" />
                   </div>
                   <div className="form-group">
-                    <label>Doctor Reference</label>
-                    <input className="custom-input" value={form.doctor_reference} onChange={(e) => setForm({ ...form, doctor_reference: e.target.value })} />
+                    <label htmlFor="doctor-reference">Doctor Reference</label>
+                    <input id="doctor-reference" className="custom-input" value={form.doctor_reference} onChange={(e) => setForm({ ...form, doctor_reference: e.target.value })} />
                   </div>
                 </div>
                 <div style={{ marginTop: '2.5rem', display: 'flex', gap: '1rem' }}>
@@ -283,13 +290,13 @@ function Customers() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ color: '#64748b', fontWeight: '700', fontSize: '0.9rem', textTransform: 'uppercase' }}>Total Billing Appx:</span>
                         <span style={{ fontSize: '1.35rem', fontWeight: '800', color: '#3b82f6' }}>
-                          ₹{ledgerData.reduce((sum, sale) => sum + parseFloat(sale.net_amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ₹{ledgerData.reduce((sum, sale) => sum + Number.parseFloat(sale.net_amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ color: '#64748b', fontWeight: '700', fontSize: '0.9rem', textTransform: 'uppercase' }}>Total Payment Recvd:</span>
                         <span style={{ fontSize: '1.35rem', fontWeight: '800', color: '#10b981' }}>
-                          ₹{ledgerData.reduce((sum, sale) => sum + parseFloat(sale.amount_received || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ₹{ledgerData.reduce((sum, sale) => sum + Number.parseFloat(sale.amount_received || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
                     </div>
@@ -298,58 +305,62 @@ function Customers() {
 
                 <h4 style={{ margin: '0 0 1rem 0', color: '#1e293b', fontSize: '1.1rem', fontWeight: '700' }}>Recent Transactions</h4>
 
-                {ledgerLoading ? (
-                  <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>Loading history...</div>
-                ) : ledgerData.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b', backgroundColor: '#f8fafc', borderRadius: '8px' }}>No past transactions found for this customer.</div>
-                ) : (
-                  <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <thead>
-                        <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "2px solid #e2e8f0" }}>
-                          <th style={thStyle}>Date & Time</th>
-                          <th style={thStyle}>Invoice No.</th>
-                          <th style={thStyle}>Items</th>
-                          <th style={thStyle}>Total Amount</th>
-                          <th style={thStyle}>Paid Amount</th>
-                          <th style={thStyle}>Payment Mode</th>
-                          <th style={thStyle}>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {ledgerData.map((sale) => (
-                          <tr key={sale.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                            <td style={tdStyle}>
-                              <div style={{ fontWeight: "600" }}>{new Date(sale.created_at).toLocaleDateString()}</div>
-                              <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                            </td>
-                            <td style={{ ...tdStyle, fontWeight: "600", color: "#3b82f6" }}>{sale.invoice_number}</td>
-                            <td style={tdStyle}>{sale.total_quantity}</td>
-                            <td style={{ ...tdStyle, fontWeight: '700', color: '#1e293b' }}>₹{parseFloat(sale.net_amount).toFixed(2)}</td>
-                            <td style={{ ...tdStyle, fontWeight: '700', color: '#10b981' }}>₹{parseFloat(sale.amount_received).toFixed(2)}</td>
-                            <td style={tdStyle}>
-                              <span style={{ padding: "4px 8px", borderRadius: "6px", backgroundColor: "#e0e7ff", color: "#3730a3", fontSize: "0.8rem", fontWeight: "600" }}>
-                                {sale.payment_mode}
-                              </span>
-                            </td>
-                            <td style={tdStyle}>
-                              <span style={{ 
-                                padding: "4px 8px", 
-                                borderRadius: "4px", 
-                                fontSize: "0.8rem", 
-                                backgroundColor: sale.status === 'Final' ? '#dcfce7' : '#fef3c7',
-                                color: sale.status === 'Final' ? '#166534' : '#92400e',
-                                fontWeight: "600"
-                              }}>
-                                {sale.status}
-                              </span>
-                            </td>
+                {(() => {
+                  if (ledgerLoading) {
+                    return <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>Loading history...</div>;
+                  }
+                  if (ledgerData.length === 0) {
+                    return <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b', backgroundColor: '#f8fafc', borderRadius: '8px' }}>No past transactions found for this customer.</div>;
+                  }
+                  return (
+                    <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <thead>
+                          <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "2px solid #e2e8f0" }}>
+                            <th style={thStyle}>Date & Time</th>
+                            <th style={thStyle}>Invoice No.</th>
+                            <th style={thStyle}>Items</th>
+                            <th style={thStyle}>Total Amount</th>
+                            <th style={thStyle}>Paid Amount</th>
+                            <th style={thStyle}>Payment Mode</th>
+                            <th style={thStyle}>Status</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                        </thead>
+                        <tbody>
+                          {ledgerData.map((sale) => (
+                            <tr key={sale.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                              <td style={tdStyle}>
+                                <div style={{ fontWeight: "600" }}>{new Date(sale.created_at).toLocaleDateString()}</div>
+                                <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                              </td>
+                              <td style={{ ...tdStyle, fontWeight: "600", color: "#3b82f6" }}>{sale.invoice_number}</td>
+                              <td style={tdStyle}>{sale.total_quantity}</td>
+                              <td style={{ ...tdStyle, fontWeight: '700', color: '#1e293b' }}>₹{Number.parseFloat(sale.net_amount).toFixed(2)}</td>
+                              <td style={{ ...tdStyle, fontWeight: '700', color: '#10b981' }}>₹{Number.parseFloat(sale.amount_received).toFixed(2)}</td>
+                              <td style={tdStyle}>
+                                <span style={{ padding: "4px 8px", borderRadius: "6px", backgroundColor: "#e0e7ff", color: "#3730a3", fontSize: "0.8rem", fontWeight: "600" }}>
+                                  {sale.payment_mode}
+                                </span>
+                              </td>
+                              <td style={tdStyle}>
+                                <span style={{ 
+                                  padding: "4px 8px", 
+                                  borderRadius: "4px", 
+                                  fontSize: "0.8rem", 
+                                  backgroundColor: sale.status === 'Final' ? '#dcfce7' : '#fef3c7',
+                                  color: sale.status === 'Final' ? '#166534' : '#92400e',
+                                  fontWeight: "600"
+                                }}>
+                                  {sale.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
